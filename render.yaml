@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: tutor-virtual-be
+    env: node
+    plan: free
+    buildCommand: npm ci && npm run prisma:generate
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tutor-virtual-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: "7d"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PORT
+        value: "10000"
+    
+  - type: pserv
+    name: tutor-virtual-db
+    plan: free
+    databaseName: tutor_virtual
+    user: tutor_virtual_user

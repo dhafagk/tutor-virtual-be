@@ -1,0 +1,47 @@
+{
+  "name": "tutor-virtual-be",
+  "version": "1.0.0",
+  "description": "Skripsi tutor virtual",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "pkill -f 'node.*src' || true && nodemon src/index.js",
+    "build": "npm run prisma:generate",
+    "postinstall": "npm run prisma:generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "node prisma/seed.js",
+    "setup:supabase": "node scripts/setup-supabase.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Dhafa",
+  "license": "ISC",
+  "dependencies": {
+    "@prisma/client": "^5.19.1",
+    "@supabase/supabase-js": "^2.53.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "express-validator": "^7.2.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.10.0",
+    "multer": "^2.0.2",
+    "openai": "^4.56.0",
+    "pdf-parse": "^1.1.1",
+    "pgvector": "^0.2.0",
+    "pptx-compose": "^1.0.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4",
+    "prisma": "^5.19.1"
+  }
+}

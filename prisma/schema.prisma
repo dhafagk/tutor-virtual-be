@@ -1,0 +1,233 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DATABASE_URL_DIRECT") // For migrations with Supabase
+  extensions = [uuid_ossp(map: "uuid-ossp"), vector]
+}
+
+// User model - base authentication table
+model User {
+  userId              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  username            String    @unique
+  password            String
+  email               String    @unique
+  role                String    @default("student") // "admin", "student"
+  loginStatus         Boolean   @default(false)
+  loginDate           DateTime?
+  updateProfileData   Json?
+  validateCredentials Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  admin   Admin?
+  student Student?
+
+  @@map("users")
+}
+
+// Admin model - extends User
+model Admin {
+  adminId     String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String    @unique @db.Uuid
+  role        String
+  permissions Json?
+  lastAccess  DateTime?
+
+  // Relations
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("admin")
+}
+
+// Student model
+model Student {
+  studentId String @id
+  userId    String @unique @db.Uuid
+  name      String
+  program   String
+  semester  Int
+
+  // Relations
+  user           User            @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  chatSessions   ChatSession[]
+  temporaryFiles TemporaryFile[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("students")
+}
+
+// Course model
+model Course {
+  courseId        String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  courseCode      String  @unique
+  courseName      String
+  description     String?
+  courseDetails   String? // Comprehensive course details
+  objectives      String? // Learning objectives
+  competencies    String? // Competencies gained
+  prerequisites   String? // Prerequisites
+  teachingMethods String? // Teaching methods
+  evaluation      String? // Evaluation methods
+  references      String? // References/textbooks
+  topics          Json?   // Course topics/modules as JSON array
+  duration        Int?    // Duration in weeks
+  semester        Int?    // Recommended semester
+  faculty         String? // Faculty
+  department      String? // Department
+  instructor      String? // Course instructor
+  credits         Int
+  isActive        Boolean @default(true)
+
+  // Relations
+  contents     Content[]
+  chatSessions ChatSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("courses")
+}
+
+// Content model - stores course content with embeddings
+model Content {
+  contentId       Int                          @id @default(autoincrement())
+  courseId        String                       @db.Uuid
+  title           String
+  description     String?                      @db.Text
+  documentUrl     String?                      @db.Text
+  documentType    String? // pdf, docx, pptx, html, etc.
+  fileSize        Int? // File size in bytes
+  pageCount       Int? // Number of pages/slides
+  isProcessed     Boolean                      @default(false) // Whether document has been processed into chunks
+  processingError String?                      @db.Text // Store any processing errors
+  embeddings      Unsupported("vector(1536)")?
+
+  // Relations
+  course Course          @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  chunks DocumentChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([courseId])
+  @@index([isProcessed])
+  @@map("contents")
+}
+
+// DocumentChunk model - stores processed chunks of documents
+model DocumentChunk {
+  chunkId    String                       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  contentId  Int
+  chunkIndex Int // Order of chunk in document
+  title      String? // Section title if available
+  content    String                       @db.Text // Chunk text content
+  tokenCount Int // Number of tokens in chunk
+  pageNumber Int? // Page number where chunk starts
+  embeddings Unsupported("vector(1536)")?
+
+  // Relations
+  document   Content     @relation(fields: [contentId], references: [contentId], onDelete: Cascade)
+  references Reference[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([contentId])
+  @@index([contentId, chunkIndex])
+  @@map("document_chunks")
+}
+
+// ChatSession model
+model ChatSession {
+  sessionId   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId   String
+  courseId    String   @db.Uuid
+  startTime   DateTime @default(now())
+  title       String?  // Auto-generated session title
+  lastMessage String?  @db.Text // Last message sent by student
+
+  // Relations
+  student  Student   @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  course   Course    @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([courseId])
+  @@map("chat_sessions")
+}
+
+// Message model
+model Message {
+  messageId   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId   String   @db.Uuid
+  content     String
+  messageType String
+  timestamp   DateTime @default(now())
+  isFromUser  Boolean
+
+  // Relations
+  chatSession ChatSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
+  references  Reference[]
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([timestamp])
+  @@map("messages")
+}
+
+// Reference model
+model Reference {
+  referenceId String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  messageId   String  @db.Uuid
+  chunkId     String? @db.Uuid // Reference to specific document chunk
+  title       String
+  source      String
+  url         String?
+  type        String?
+  similarity  Float? // Similarity score for RAG retrieval
+
+  // Relations
+  message Message        @relation(fields: [messageId], references: [messageId], onDelete: Cascade)
+  chunk   DocumentChunk? @relation(fields: [chunkId], references: [chunkId], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+  @@index([chunkId])
+  @@map("references")
+}
+
+// TemporaryFile model - for staged file uploads
+model TemporaryFile {
+  fileId       String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  studentId    String
+  originalName String
+  storagePath  String // Supabase storage path
+  mimeType     String
+  fileSize     Int
+  expiresAt    DateTime
+
+  // Relations
+  student Student @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([studentId])
+  @@index([expiresAt])
+  @@map("temporary_files")
+}
