@@ -40,7 +40,7 @@ This guide explains how to deploy the Tutor Virtual Backend to Render.com.
 - Branch: `main` (or your preferred branch)
 
 **Build & Deploy:**
-- Build Command: `npm ci && npm run prisma:generate`
+- Build Command: `npm install && npm run prisma:generate`
 - Start Command: `npm start`
 
 **Environment Variables:**
