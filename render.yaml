@@ -3,8 +3,8 @@ services:
     name: tutor-virtual-be
     env: node
     plan: free
-    buildCommand: npm install && npm run prisma:generate
-    startCommand: npm start
+    buildCommand: yarn install && yarn prisma:generate
+    startCommand: yarn start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV

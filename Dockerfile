@@ -10,7 +10,7 @@ COPY package*.json ./
 COPY prisma ./prisma/
 
 # Install dependencies
-RUN npm ci
+RUN yarn install
 
 # Generate Prisma client
 RUN npx prisma generate

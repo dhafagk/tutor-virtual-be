@@ -40,8 +40,8 @@ This guide explains how to deploy the Tutor Virtual Backend to Render.com.
 - Branch: `main` (or your preferred branch)
 
 **Build & Deploy:**
-- Build Command: `npm install && npm run prisma:generate`
-- Start Command: `npm start`
+- Build Command: `yarn install && yarn prisma:generate`
+- Start Command: `yarn start`
 
 **Environment Variables:**
 ```
@@ -68,8 +68,8 @@ After deployment, run the database migrations:
 
 1. Go to your web service on Render
 2. Open the Shell tab
-3. Run: `npm run prisma:migrate:deploy`
-4. Optionally seed the database: `npm run prisma:seed`
+3. Run: `yarn prisma:migrate:deploy`
+4. Optionally seed the database: `yarn prisma:seed`
 
 ### 4. Health Check
 
