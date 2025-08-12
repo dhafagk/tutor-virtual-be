@@ -42,11 +42,17 @@ RAG addresses fundamental limitations in educational AI systems:
 ### 2.1 High-Level Architecture
 
 ```
-[Course Documents] → [Document Processing] → [Vector Database]
+[Course Documents] → [Document Processing] → [Vector Database (pgvector)]
+          ↓                    ↓                        ↓
+[AI Generation] → [Content Creation] → [Database Storage]
+                                                     ↓
+[Student Upload] → [Temp Processing] ──┐              ↓
+          ↓                            ↓              ↓
+[Image/Doc Analysis] ────────────────→ [Context Assembly]
                                                      ↓
 [Student Query] → [Embedding Generation] → [Similarity Search] → [Context Retrieval]
                                                      ↓
-[Retrieved Context] + [Query] → [LLM Generation] → [Educational Response]
+[Retrieved Context] + [Upload Context] + [Query] → [LLM Generation] → [Educational Response]
 ```
 
 ### 2.2 Key Components
@@ -54,24 +60,91 @@ RAG addresses fundamental limitations in educational AI systems:
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | **Document Store** | PostgreSQL + pgvector | Stores document chunks with vector embeddings |
+| **File Storage** | Supabase Storage | Handles temporary file uploads and storage |
 | **Embedding Model** | OpenAI text-embedding-3-small | Converts text to numerical vectors |
 | **Vector Search** | pgvector cosine similarity | Finds semantically similar content |
 | **Language Model** | OpenAI GPT-4o-mini | Generates contextually-aware responses |
+| **Vision Model** | OpenAI GPT-4o | Processes and analyzes uploaded images |
 | **Web Framework** | Express.js + Prisma ORM | Handles API requests and database operations |
+| **Content Generation** | OpenAI GPT-4o-mini | Generates course information and recommendations |
 
 ### 2.3 Database Schema Design
 
+#### Enhanced User Management:
+The system now implements a sophisticated user management system with:
+- **Base User Table**: Stores authentication credentials and role information
+- **Role-Specific Extensions**: Separate Admin and Student tables extending the base User
+- **Cascade Deletion**: Ensures data integrity when users are removed
+
+#### AI-Generated Content Support:
+The system can now generate course content automatically:
+- **AI Course Generation**: Uses OpenAI to generate course descriptions, objectives, competencies
+- **Content Recommendations**: AI suggests relevant learning materials and resources
+- **Processing Flags**: Tracks whether content is AI-generated vs. manually added
+
+#### File Upload System:
+Implements temporary file staging for chat interactions:
+- **Supabase Storage Integration**: Handles file storage and retrieval
+- **Expiration Management**: Automatic cleanup of temporary files
+- **Multi-format Support**: Images, PDFs, DOCX, PPTX processing
+
 #### Core Tables:
-- **courses**: Course metadata and information
-- **contents**: Document metadata (title, URL, processing status)
+- **users**: Base authentication table with role-based access
+- **admin**: Admin-specific data extending users
+- **students**: Student-specific data extending users
+- **courses**: Course metadata with comprehensive academic information
+- **contents**: Document metadata (title, URL, processing status, AI-generated flag)
 - **document_chunks**: Processed text segments with vector embeddings
 - **chat_sessions**: Persistent conversation contexts
 - **messages**: Individual student-AI interactions
 - **references**: Links messages to source document chunks
+- **temporary_files**: Staged file uploads for chat interactions
 
 ---
 
 ## 3. RAG Implementation Components
+
+### 3.0 AI-Powered Course Generation
+
+The system includes an innovative course generation service that uses OpenAI's language models to automatically create comprehensive course information:
+
+#### Course Field Generation
+```javascript
+export const generateCourseFields = async (courseName) => {
+  // Generates: description, objectives, competencies, prerequisites, topics
+  // Uses structured prompts for consistent educational content
+};
+```
+
+**Generated Fields:**
+- **Description**: 2-3 sentence overview of the course
+- **Objectives**: Comprehensive learning goals and outcomes
+- **Competencies**: Skills and knowledge students will acquire
+- **Prerequisites**: Required prior knowledge or courses
+- **Topics**: 8-12 main topics covered in the course (JSON array)
+
+#### Content Recommendation Generation
+```javascript
+export const generateCourseContent = async (courseName) => {
+  // Generates: contentList with titles, descriptions, URLs, document types
+  // Prioritizes Indonesian context and multilingual resources
+};
+```
+
+**Content Types Generated:**
+- **Books**: Standard textbooks and reference materials
+- **Journals**: Relevant academic papers and research
+- **Articles**: Industry publications and technical papers  
+- **Websites**: Quality online resources and documentation
+- **Videos**: Educational video content and tutorials
+- **Presentations**: Lecture slides and course materials
+
+**Quality Assurance:**
+- JSON validation for structured output
+- Field completeness verification
+- URL validation where applicable
+- Indonesian language prioritization with English supplement
+- Minimum 10-15 high-quality content recommendations per course
 
 ### 3.1 Document Processing Pipeline
 
@@ -584,19 +657,31 @@ const qualityFilters = {
 - **Educational Prompt Engineering**: System prompts designed for learning guidance
 - **Multi-Modal Support**: Integration of text documents and student-uploaded images
 - **Persistent Session Context**: Long-term conversation memory for educational continuity
+- **AI Course Generation**: Automated creation of comprehensive course information
+- **Real-time Document Analysis**: Student-uploaded documents processed for immediate context
 
 #### Multilingual Educational AI
 - **Cross-Language Retrieval**: Indonesian queries against English educational content
 - **Cultural Context Preservation**: Maintains Indonesian educational communication norms
 - **Language-Aware Thresholding**: Adjusted similarity thresholds for cross-language scenarios
 
+#### Advanced File Processing
+- **Multi-Format Document Support**: PDF, DOCX, PPTX, HTML processing with intelligent text extraction
+- **Vision-Language Integration**: GPT-4V for image analysis and educational guidance
+- **Chunked Analysis**: Intelligent processing of large documents with context preservation
+- **Temporary Storage Management**: Secure file staging with automatic cleanup
+
 ### 8.2 Research Contributions
 
 #### Technical Innovations
-1. **Hybrid Document Processing**: Supports PDF, DOCX, HTML, and PPTX formats
-2. **Adaptive Chunking**: Sentence-boundary-aware text segmentation
-3. **Dynamic Context Assembly**: Token-limited, relevance-ranked context construction
-4. **Educational Response Filtering**: Prevents direct answer provision for assignments
+1. **Hybrid Document Processing**: Supports PDF, DOCX, HTML, and PPTX formats with intelligent content extraction
+2. **Adaptive Chunking**: Sentence-boundary-aware text segmentation with overlap management
+3. **Dynamic Context Assembly**: Token-limited, relevance-ranked context construction with document grouping
+4. **Educational Response Filtering**: Prevents direct answer provision for assignments through prompt engineering
+5. **AI Content Generation**: Automated course field generation and content recommendation
+6. **Multi-Modal Analysis**: Integrated text and image processing for comprehensive educational support
+7. **Supabase Integration**: Cloud storage for scalable file management and processing
+8. **Real-time Document Context**: Student-uploaded files processed instantly for chat context
 
 #### Methodological Contributions
 1. **Threshold Optimization**: Empirically-driven similarity threshold selection

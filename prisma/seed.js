@@ -77,8 +77,6 @@ async function main() {
       courseCode: "CS101",
       courseName: "Introduction to Programming",
       description: "Basic programming concepts using Python",
-      courseDetails:
-        "This course introduces students to fundamental programming concepts using Python. Students will learn problem-solving techniques, algorithm design, and software development best practices. The course covers basic syntax, data types, control structures, functions, and object-oriented programming principles.",
       objectives:
         "To provide students with a solid foundation in programming concepts and Python language, enabling them to solve computational problems and develop simple applications.",
       competencies:
@@ -102,7 +100,6 @@ async function main() {
         "Object-Oriented Programming Basics",
         "Final Project Development",
       ]),
-      duration: 16,
       semester: 1,
       faculty: "Faculty of Computer Science",
       department: "Computer Science",
@@ -116,8 +113,6 @@ async function main() {
       courseCode: "CS201",
       courseName: "Data Structures and Algorithms",
       description: "Fundamental data structures and algorithms",
-      courseDetails:
-        "This course covers essential data structures and algorithms used in computer science. Students will learn about arrays, linked lists, stacks, queues, trees, graphs, and various sorting and searching algorithms. The course emphasizes both theoretical understanding and practical implementation.",
       objectives:
         "To equip students with knowledge of fundamental data structures and algorithms, enabling them to choose appropriate data structures for different problems and analyze algorithm efficiency.",
       competencies:
@@ -142,7 +137,6 @@ async function main() {
         "Sorting Algorithms",
         "Searching Algorithms",
       ]),
-      duration: 16,
       semester: 3,
       faculty: "Faculty of Computer Science",
       department: "Computer Science",
@@ -156,8 +150,6 @@ async function main() {
       courseCode: "IS301",
       courseName: "Database Systems",
       description: "Database design and implementation with SQL",
-      courseDetails:
-        "This course provides comprehensive coverage of database systems, including relational database design, SQL programming, normalization, transaction management, and database administration. Students will learn to design, implement, and manage database systems for real-world applications.",
       objectives:
         "To provide students with theoretical knowledge and practical skills in database design, implementation, and management using modern database management systems.",
       competencies:
@@ -183,7 +175,6 @@ async function main() {
         "Database Security",
         "NoSQL Databases Overview",
       ]),
-      duration: 16,
       semester: 5,
       faculty: "Faculty of Information Systems",
       department: "Information Systems",
@@ -198,8 +189,6 @@ async function main() {
       courseName: "Machine Learning and Neural Networks",
       description:
         "Advanced course covering machine learning algorithms and neural network architectures",
-      courseDetails:
-        "This course covers advanced machine learning concepts including deep learning, attention mechanisms, transformers, and modern neural network architectures. Students will learn both theoretical foundations and practical implementations.",
       objectives:
         "To provide students with comprehensive understanding of modern machine learning techniques and neural network architectures.",
       competencies:
@@ -220,7 +209,6 @@ async function main() {
         "Natural Language Processing",
         "Transfer Learning",
       ]),
-      duration: 16,
       semester: 7,
       faculty: "Faculty of Computer Science",
       department: "Computer Science",

@@ -5,6 +5,10 @@ import {
   processAllCourseDocuments,
 } from "../services/ragService.js";
 import {
+  generateCourseFields,
+  generateCourseContent,
+} from "../services/courseGenerationService.js";
+import {
   successResponse,
   errorResponse,
   validationErrorResponse,
@@ -90,8 +94,142 @@ export const getCourses = asyncHandler(async (req, res) => {
   });
 });
 
+export const getCourseById = asyncHandler(async (req, res) => {
+  const { courseId } = req.params;
+
+  const course = await prisma.course.findUnique({
+    where: { courseId },
+    include: {
+      _count: {
+        select: {
+          contents: true,
+          chatSessions: true,
+        },
+      },
+    },
+  });
+
+  if (!course) {
+    return errorResponse(res, HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.NOT_FOUND);
+  }
+
+  return successResponse(
+    res,
+    HTTP_STATUS.OK,
+    SUCCESS_MESSAGES.RETRIEVED,
+    course
+  );
+});
+
+export const generateCourseFieldsOnly = asyncHandler(async (req, res) => {
+  const { courseName } = req.body;
+
+  if (!courseName) {
+    return errorResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      "Course name is required"
+    );
+  }
+
+  try {
+    const result = await generateCourseFields(courseName);
+
+    if (!result.success) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        result.error || "Failed to generate course fields"
+      );
+    }
+
+    return successResponse(
+      res,
+      HTTP_STATUS.OK,
+      "Course fields generated successfully",
+      {
+        ...result.data,
+        generatedAt: new Date(),
+      }
+    );
+  } catch (error) {
+    console.error("Course fields generation error:", error);
+    return errorResponse(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to generate course fields",
+      "GENERATION_ERROR",
+      error.message
+    );
+  }
+});
+
+export const generateCourseContentOnly = asyncHandler(async (req, res) => {
+  const { courseName } = req.body;
+
+  if (!courseName) {
+    return errorResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      "Course name is required"
+    );
+  }
+
+  try {
+    const result = await generateCourseContent(courseName);
+
+    if (!result.success) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.INTERNAL_SERVER_ERROR,
+        result.error || "Failed to generate course content"
+      );
+    }
+
+    return successResponse(
+      res,
+      HTTP_STATUS.OK,
+      "Course content recommendations generated successfully",
+      {
+        ...result.data,
+        generatedAt: new Date(),
+        summary: {
+          totalContentSuggestions: result.data.contentList.length,
+          contentTypes: result.data.contentList.reduce((acc, content) => {
+            const type = content.documentType || "unknown";
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          }, {}),
+        },
+      }
+    );
+  } catch (error) {
+    console.error("Course content generation error:", error);
+    return errorResponse(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to generate course content recommendations",
+      "GENERATION_ERROR",
+      error.message
+    );
+  }
+});
+
 export const createCourse = asyncHandler(async (req, res) => {
-  const { courseCode, courseName, description, credits, instructor } = req.body;
+  const {
+    courseCode,
+    courseName,
+    description,
+    credits,
+    instructor,
+    objectives,
+    competencies,
+    prerequisites,
+    topics,
+    semester,
+    faculty,
+    department,
+  } = req.body;
 
   const course = await prisma.course.create({
     data: {
@@ -100,6 +238,13 @@ export const createCourse = asyncHandler(async (req, res) => {
       description,
       credits,
       instructor,
+      objectives,
+      competencies,
+      prerequisites,
+      topics,
+      semester,
+      faculty,
+      department,
     },
   });
 
@@ -209,6 +354,196 @@ export const deleteContent = asyncHandler(async (req, res) => {
   });
 
   return successResponse(res, HTTP_STATUS.OK, SUCCESS_MESSAGES.DELETED);
+});
+
+// Bulk content operations
+export const bulkCreateContent = asyncHandler(async (req, res) => {
+  const { contents } = req.body;
+
+  if (!Array.isArray(contents) || contents.length === 0) {
+    return errorResponse(
+      res, 
+      HTTP_STATUS.BAD_REQUEST, 
+      "Contents array is required and must not be empty"
+    );
+  }
+
+  // Validate each content item
+  for (const [index, content] of contents.entries()) {
+    if (!content.courseId || !content.title) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        `Content item at index ${index} is missing required fields: courseId and title`
+      );
+    }
+  }
+
+  try {
+    // Verify all courses exist
+    const courseIds = [...new Set(contents.map(c => c.courseId))];
+    const existingCourses = await prisma.course.findMany({
+      where: { courseId: { in: courseIds } },
+      select: { courseId: true }
+    });
+
+    const existingCourseIds = new Set(existingCourses.map(c => c.courseId));
+    const missingCourseIds = courseIds.filter(id => !existingCourseIds.has(id));
+
+    if (missingCourseIds.length > 0) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        `Courses not found: ${missingCourseIds.join(', ')}`
+      );
+    }
+
+    // Create all content in a transaction
+    const createdContents = await prisma.$transaction(async (tx) => {
+      const results = [];
+      
+      for (const contentData of contents) {
+        const content = await tx.content.create({
+          data: {
+            courseId: contentData.courseId,
+            title: contentData.title,
+            description: contentData.description || null,
+            documentUrl: contentData.documentUrl || null,
+            documentType: contentData.documentType || null,
+            isGenerated: contentData.isGenerated || false,
+          },
+        });
+        results.push(content);
+      }
+      
+      return results;
+    });
+
+    return successResponse(
+      res,
+      HTTP_STATUS.CREATED,
+      "Bulk content created successfully",
+      {
+        createdContents,
+        summary: {
+          totalCreated: createdContents.length,
+          courseDistribution: createdContents.reduce((acc, content) => {
+            acc[content.courseId] = (acc[content.courseId] || 0) + 1;
+            return acc;
+          }, {}),
+          contentTypes: createdContents.reduce((acc, content) => {
+            const type = content.documentType || 'unknown';
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          }, {}),
+        }
+      }
+    );
+
+  } catch (error) {
+    console.error("Bulk content creation error:", error);
+    return errorResponse(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to create content in bulk",
+      "BULK_CREATE_ERROR",
+      error.message
+    );
+  }
+});
+
+export const bulkUpdateContent = asyncHandler(async (req, res) => {
+  const { updates } = req.body;
+
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return errorResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      "Updates array is required and must not be empty"
+    );
+  }
+
+  // Validate each update item
+  for (const [index, update] of updates.entries()) {
+    if (!update.contentId) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        `Update item at index ${index} is missing required field: contentId`
+      );
+    }
+  }
+
+  try {
+    // Verify all content items exist
+    const contentIds = updates.map(u => u.contentId);
+    const existingContents = await prisma.content.findMany({
+      where: { contentId: { in: contentIds } },
+      select: { contentId: true }
+    });
+
+    const existingContentIds = new Set(existingContents.map(c => c.contentId));
+    const missingContentIds = contentIds.filter(id => !existingContentIds.has(id));
+
+    if (missingContentIds.length > 0) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.BAD_REQUEST,
+        `Content items not found: ${missingContentIds.join(', ')}`
+      );
+    }
+
+    // Update all content in a transaction
+    const updatedContents = await prisma.$transaction(async (tx) => {
+      const results = [];
+      
+      for (const updateData of updates) {
+        const { contentId, ...updateFields } = updateData;
+        
+        // Only include fields that are provided and not undefined
+        const dataToUpdate = {};
+        if (updateFields.title !== undefined) dataToUpdate.title = updateFields.title;
+        if (updateFields.description !== undefined) dataToUpdate.description = updateFields.description;
+        if (updateFields.documentUrl !== undefined) dataToUpdate.documentUrl = updateFields.documentUrl;
+        if (updateFields.documentType !== undefined) dataToUpdate.documentType = updateFields.documentType;
+        if (updateFields.isGenerated !== undefined) dataToUpdate.isGenerated = updateFields.isGenerated;
+
+        const content = await tx.content.update({
+          where: { contentId: parseInt(contentId) },
+          data: dataToUpdate,
+        });
+        results.push(content);
+      }
+      
+      return results;
+    });
+
+    return successResponse(
+      res,
+      HTTP_STATUS.OK,
+      "Bulk content updated successfully",
+      {
+        updatedContents,
+        summary: {
+          totalUpdated: updatedContents.length,
+          courseDistribution: updatedContents.reduce((acc, content) => {
+            acc[content.courseId] = (acc[content.courseId] || 0) + 1;
+            return acc;
+          }, {}),
+        }
+      }
+    );
+
+  } catch (error) {
+    console.error("Bulk content update error:", error);
+    return errorResponse(
+      res,
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      "Failed to update content in bulk",
+      "BULK_UPDATE_ERROR",
+      error.message
+    );
+  }
 });
 
 // Upload document and create content
@@ -409,7 +744,7 @@ export const getSessionAnalytics = asyncHandler(async (req, res) => {
     where,
     include: {
       student: true,
-      courses: true,
+      course: true,
       _count: {
         select: { messages: true },
       },

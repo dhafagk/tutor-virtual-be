@@ -69,25 +69,20 @@ model Student {
 
 // Course model
 model Course {
-  courseId        String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  courseCode      String  @unique
-  courseName      String
-  description     String?
-  courseDetails   String? // Comprehensive course details
-  objectives      String? // Learning objectives
-  competencies    String? // Competencies gained
-  prerequisites   String? // Prerequisites
-  teachingMethods String? // Teaching methods
-  evaluation      String? // Evaluation methods
-  references      String? // References/textbooks
-  topics          Json?   // Course topics/modules as JSON array
-  duration        Int?    // Duration in weeks
-  semester        Int?    // Recommended semester
-  faculty         String? // Faculty
-  department      String? // Department
-  instructor      String? // Course instructor
-  credits         Int
-  isActive        Boolean @default(true)
+  courseId      String  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  courseCode    String  @unique
+  courseName    String
+  description   String?
+  objectives    String? // Learning objectives
+  competencies  String? // Competencies gained
+  prerequisites String? // Prerequisites
+  topics        Json?   // Course topics/modules as JSON array
+  semester      Int?    // Recommended semester
+  faculty       String? // Faculty
+  department    String? // Department
+  instructor    String? // Course instructor
+  credits       Int
+  isActive      Boolean @default(true)
 
   // Relations
   contents     Content[]
@@ -111,6 +106,7 @@ model Content {
   pageCount       Int? // Number of pages/slides
   isProcessed     Boolean                      @default(false) // Whether document has been processed into chunks
   processingError String?                      @db.Text // Store any processing errors
+  isGenerated     Boolean                      @default(false) // Whether content was AI-generated or manually added
   embeddings      Unsupported("vector(1536)")?
 
   // Relations
@@ -122,6 +118,7 @@ model Content {
 
   @@index([courseId])
   @@index([isProcessed])
+  @@index([isGenerated])
   @@map("contents")
 }
 

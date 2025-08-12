@@ -79,7 +79,6 @@ export const getAvailableCourses = asyncHandler(async (req, res) => {
       faculty: true,
       department: true,
       instructor: true,
-      duration: true,
       _count: {
         select: {
           contents: true,
@@ -134,12 +133,10 @@ export const getCourseDetail = asyncHandler(async (req, res) => {
     courseCode: course.courseCode,
     courseName: course.courseName,
     description: course.description,
-    courseDetails: course.courseDetails,
 
     // Course Information
     info: {
       credits: course.credits,
-      duration: course.duration,
       semester: course.semester,
       faculty: course.faculty,
       department: course.department,
@@ -279,6 +276,7 @@ export const getCourseDocuments = asyncHandler(async (req, res) => {
         title: true,
         description: true,
         documentUrl: true,
+        fileSize: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -294,6 +292,7 @@ export const getCourseDocuments = asyncHandler(async (req, res) => {
     contentId: doc.contentId,
     title: doc.title,
     description: doc.description,
+    documentType: doc.documentType,
     documentUrl: doc.documentUrl,
     fileSize: doc.fileSize,
     preview: doc.description

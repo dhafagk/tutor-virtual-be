@@ -150,7 +150,6 @@ export const startCourseChat = asyncHandler(async (req, res) => {
       courseCode: true,
       courseName: true,
       description: true,
-      courseDetails: true,
     },
   });
 
@@ -374,14 +373,20 @@ export const sendMessage = asyncHandler(async (req, res) => {
     console.error("OpenAI API Error:", error);
 
     // Return appropriate error based on the error type
-    if (error.status === 400 && error.message?.includes("content_policy_violation")) {
+    if (
+      error.status === 400 &&
+      error.message?.includes("content_policy_violation")
+    ) {
       return errorResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
         "Your message contains content that violates our content policy. Please rephrase your question.",
         "CONTENT_POLICY_VIOLATION"
       );
-    } else if (error.status === 400 && error.message?.includes("context_length_exceeded")) {
+    } else if (
+      error.status === 400 &&
+      error.message?.includes("context_length_exceeded")
+    ) {
       return errorResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,

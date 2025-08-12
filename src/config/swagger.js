@@ -142,11 +142,6 @@ const options = {
               description: "Department name",
               example: "Computer Science Department",
             },
-            duration: {
-              type: "integer",
-              description: "Course duration in weeks",
-              example: 16,
-            },
             isActive: {
               type: "boolean",
               description: "Course active status",

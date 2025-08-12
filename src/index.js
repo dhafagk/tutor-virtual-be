@@ -19,9 +19,30 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// CORS configuration
+const corsOptions = {
+  origin: [
+    "http://localhost:5173", // Vite dev server
+    "http://localhost:3000", // Alternative dev port
+    "https://your-production-domain.com", // Production domain
+  ],
+  credentials: true, // Allow cookies
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+  ],
+  exposedHeaders: ["Set-Cookie"],
+};
+
 // Security middleware
 app.use(helmet());
-app.use(cors());
+app.use(cors(corsOptions));
+// Handle preflight requests
+app.options("*", cors(corsOptions));
 app.use(express.json());
 
 // Rate limiting
@@ -79,10 +100,10 @@ app.use("/api/files", fileRoutes);
  *                   example: "2024-01-01T12:00:00.000Z"
  */
 app.get("/health", (_, res) => {
-  successResponse(res, 200, "Service is healthy", { 
+  successResponse(res, 200, "Service is healthy", {
     status: "OK",
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || "development"
+    environment: process.env.NODE_ENV || "development",
   });
 });
 

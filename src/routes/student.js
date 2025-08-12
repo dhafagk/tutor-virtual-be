@@ -159,7 +159,7 @@ router.get("/courses", getAvailableCourses);
  *                           type: string
  *                         prerequisites:
  *                           type: string
- *                         teachingMethodsAjar:
+ *                         teachingMethods:
  *                           type: string
  *                         evaluation:
  *                           type: string

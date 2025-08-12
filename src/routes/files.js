@@ -1,5 +1,5 @@
 import express from "express";
-import { authenticateToken, authorizeStudent } from "../middleware/auth.js";
+import { authenticateToken, authorizeStudent, authorizeStudentOrAdmin } from "../middleware/auth.js";
 import { validateUUIDParam } from "../middleware/validation.js";
 import {
   uploadFile,
@@ -85,11 +85,11 @@ router.use(authenticateToken);
  *                   type: string
  *                   example: "No file uploaded. Please select a file to upload."
  *       403:
- *         description: Student access required
+ *         description: Student or Admin access required
  *       500:
  *         description: Upload failed
  */
-router.post("/upload", authorizeStudent, uploadTempFile, uploadFile);
+router.post("/upload", authorizeStudentOrAdmin, uploadTempFile, uploadFile);
 
 /**
  * @swagger
@@ -138,11 +138,11 @@ router.post("/upload", authorizeStudent, uploadTempFile, uploadFile);
  *                   type: integer
  *                   example: 10
  *       403:
- *         description: Student access required
+ *         description: Student or Admin access required
  *       500:
  *         description: Failed to retrieve files
  */
-router.get("/", authorizeStudent, listFiles);
+router.get("/", authorizeStudentOrAdmin, listFiles);
 
 /**
  * @swagger
@@ -178,11 +178,11 @@ router.get("/", authorizeStudent, listFiles);
  *       404:
  *         description: File not found
  *       403:
- *         description: Student access required
+ *         description: Student or Admin access required
  *       500:
  *         description: Failed to remove file
  */
-router.delete("/:fileId", authorizeStudent, validateUUIDParam("fileId"), removeFile);
+router.delete("/:fileId", authorizeStudentOrAdmin, validateUUIDParam("fileId"), removeFile);
 
 /**
  * @swagger
@@ -222,11 +222,11 @@ router.delete("/:fileId", authorizeStudent, validateUUIDParam("fileId"), removeF
  *       404:
  *         description: File not found or expired
  *       403:
- *         description: Student access required
+ *         description: Student or Admin access required
  *       500:
  *         description: Failed to generate preview URL
  */
-router.get("/:fileId/preview", authorizeStudent, validateUUIDParam("fileId"), getFilePreviewUrl);
+router.get("/:fileId/preview", authorizeStudentOrAdmin, validateUUIDParam("fileId"), getFilePreviewUrl);
 
 /**
  * @swagger
