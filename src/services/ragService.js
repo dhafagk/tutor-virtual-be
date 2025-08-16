@@ -937,11 +937,37 @@ Gaya Komunikasi:
         content: systemPrompt,
       },
       ...conversationHistory,
-      {
-        role: "user",
-        content: userMessage,
-      },
     ];
+
+    // Build user message with optional image content
+    const userMessageContent = [];
+
+    // Add text content
+    userMessageContent.push({
+      type: "text",
+      text: userMessage,
+    });
+
+    // Add image if provided
+    if (
+      fileContext &&
+      fileContext.buffer &&
+      fileContext.mimeType.startsWith("image/")
+    ) {
+      const base64Image = fileContext.buffer.toString("base64");
+      userMessageContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${fileContext.mimeType};base64,${base64Image}`,
+        },
+      });
+    }
+
+    // Add user message to messages array
+    messages.push({
+      role: "user",
+      content: userMessageContent,
+    });
 
     // Estimate total token count to prevent API errors
     const totalTokenEstimate = messages.reduce((total, msg) => {
