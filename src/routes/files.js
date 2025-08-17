@@ -7,7 +7,7 @@ import {
   removeFile,
   getFilePreviewUrl,
   getStorageStats,
-  uploadTempFile,
+  uploadFileMiddleware,
 } from "../controllers/fileController.js";
 
 const router = express.Router();
@@ -20,8 +20,8 @@ router.use(authenticateToken);
  * /api/files/upload:
  *   post:
  *     tags: [File Management]
- *     summary: Upload file for staging
- *     description: Upload a file (image or document) for temporary storage and preview. Files are automatically deleted after 24 hours.
+ *     summary: Upload file permanently
+ *     description: Upload a file (image or document) for permanent storage. Files remain available for use in chat sessions.
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -71,7 +71,7 @@ router.use(authenticateToken);
  *                     uploadedAt:
  *                       type: string
  *                       format: date-time
- *                     expiresAt:
+ *                     updatedAt:
  *                       type: string
  *                       format: date-time
  *       400:
@@ -89,7 +89,7 @@ router.use(authenticateToken);
  *       500:
  *         description: Upload failed
  */
-router.post("/upload", authorizeStudentOrAdmin, uploadTempFile, uploadFile);
+router.post("/upload", authorizeStudentOrAdmin, uploadFileMiddleware, uploadFile);
 
 /**
  * @swagger
@@ -128,15 +128,12 @@ router.post("/upload", authorizeStudentOrAdmin, uploadTempFile, uploadFile);
  *                       uploadedAt:
  *                         type: string
  *                         format: date-time
- *                       expiresAt:
- *                         type: string
- *                         format: date-time
  *                 totalFiles:
  *                   type: integer
  *                   example: 3
  *                 maxFiles:
  *                   type: integer
- *                   example: 10
+ *                   example: 100
  *       403:
  *         description: Student or Admin access required
  *       500:
@@ -150,7 +147,7 @@ router.get("/", authorizeStudentOrAdmin, listFiles);
  *   delete:
  *     tags: [File Management]
  *     summary: Remove uploaded file
- *     description: Remove a file from temporary storage
+ *     description: Remove a file from permanent storage
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -220,7 +217,7 @@ router.delete("/:fileId", authorizeStudentOrAdmin, validateUUIDParam("fileId"), 
  *                   type: string
  *                   format: date-time
  *       404:
- *         description: File not found or expired
+ *         description: File not found
  *       403:
  *         description: Student or Admin access required
  *       500:
@@ -234,7 +231,7 @@ router.get("/:fileId/preview", authorizeStudentOrAdmin, validateUUIDParam("fileI
  *   get:
  *     tags: [File Management]
  *     summary: Get storage statistics (Admin only)
- *     description: Get temporary file storage statistics for monitoring
+ *     description: Get file storage statistics for monitoring
  *     security:
  *       - bearerAuth: []
  *     responses:
@@ -251,10 +248,6 @@ router.get("/:fileId/preview", authorizeStudentOrAdmin, validateUUIDParam("fileI
  *                   type: object
  *                   properties:
  *                     totalFiles:
- *                       type: integer
- *                     activeFiles:
- *                       type: integer
- *                     expiredFiles:
  *                       type: integer
  *                     totalSizeBytes:
  *                       type: integer

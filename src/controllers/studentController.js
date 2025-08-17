@@ -3,7 +3,6 @@ import { asyncHandler } from "../middleware/errorHandler.js";
 import {
   successResponse,
   errorResponse,
-  validationErrorResponse,
   paginatedResponse,
   HTTP_STATUS,
   SUCCESS_MESSAGES,
@@ -178,6 +177,9 @@ export const getStudentSessions = asyncHandler(async (req, res) => {
   const where = {
     studentId: req.student.studentId,
     ...(courseId && { courseId }),
+    messages: {
+      some: {}, // Only include sessions that have at least one message
+    },
   };
 
   const [sessions, totalCount] = await Promise.all([
@@ -235,6 +237,15 @@ export const getStudentSession = asyncHandler(async (req, res) => {
       messages: {
         include: {
           references: true,
+          file: {
+            select: {
+              fileId: true,
+              originalName: true,
+              mimeType: true,
+              fileSize: true,
+              createdAt: true,
+            },
+          },
         },
         orderBy: { timestamp: "asc" },
       },
@@ -245,8 +256,30 @@ export const getStudentSession = asyncHandler(async (req, res) => {
     return errorResponse(res, HTTP_STATUS.NOT_FOUND, "Session not found");
   }
 
+  // Format messages to include file information
+  const formattedMessages = session.messages.map((message) => ({
+    ...message,
+    fileInfo: message.file
+      ? {
+          fileId: message.file.fileId,
+          fileName: message.file.originalName,
+          fileType: message.file.mimeType,
+          fileSize: message.file.fileSize,
+          uploadedAt: message.file.createdAt,
+          fileTypeCategory: message.file.mimeType.startsWith("image/")
+            ? "image"
+            : "document",
+        }
+      : null,
+    // Remove the raw file object from response
+    file: undefined,
+  }));
+
   return successResponse(res, HTTP_STATUS.OK, SUCCESS_MESSAGES.RETRIEVED, {
-    session,
+    session: {
+      ...session,
+      messages: formattedMessages,
+    },
   });
 });
 

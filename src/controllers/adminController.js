@@ -11,7 +11,6 @@ import {
 import {
   successResponse,
   errorResponse,
-  validationErrorResponse,
   paginatedResponse,
   HTTP_STATUS,
   SUCCESS_MESSAGES,
@@ -362,8 +361,8 @@ export const bulkCreateContent = asyncHandler(async (req, res) => {
 
   if (!Array.isArray(contents) || contents.length === 0) {
     return errorResponse(
-      res, 
-      HTTP_STATUS.BAD_REQUEST, 
+      res,
+      HTTP_STATUS.BAD_REQUEST,
       "Contents array is required and must not be empty"
     );
   }
@@ -381,27 +380,29 @@ export const bulkCreateContent = asyncHandler(async (req, res) => {
 
   try {
     // Verify all courses exist
-    const courseIds = [...new Set(contents.map(c => c.courseId))];
+    const courseIds = [...new Set(contents.map((c) => c.courseId))];
     const existingCourses = await prisma.course.findMany({
       where: { courseId: { in: courseIds } },
-      select: { courseId: true }
+      select: { courseId: true },
     });
 
-    const existingCourseIds = new Set(existingCourses.map(c => c.courseId));
-    const missingCourseIds = courseIds.filter(id => !existingCourseIds.has(id));
+    const existingCourseIds = new Set(existingCourses.map((c) => c.courseId));
+    const missingCourseIds = courseIds.filter(
+      (id) => !existingCourseIds.has(id)
+    );
 
     if (missingCourseIds.length > 0) {
       return errorResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
-        `Courses not found: ${missingCourseIds.join(', ')}`
+        `Courses not found: ${missingCourseIds.join(", ")}`
       );
     }
 
     // Create all content in a transaction
     const createdContents = await prisma.$transaction(async (tx) => {
       const results = [];
-      
+
       for (const contentData of contents) {
         const content = await tx.content.create({
           data: {
@@ -415,7 +416,7 @@ export const bulkCreateContent = asyncHandler(async (req, res) => {
         });
         results.push(content);
       }
-      
+
       return results;
     });
 
@@ -432,14 +433,13 @@ export const bulkCreateContent = asyncHandler(async (req, res) => {
             return acc;
           }, {}),
           contentTypes: createdContents.reduce((acc, content) => {
-            const type = content.documentType || 'unknown';
+            const type = content.documentType || "unknown";
             acc[type] = (acc[type] || 0) + 1;
             return acc;
           }, {}),
-        }
+        },
       }
     );
-
   } catch (error) {
     console.error("Bulk content creation error:", error);
     return errorResponse(
@@ -476,37 +476,46 @@ export const bulkUpdateContent = asyncHandler(async (req, res) => {
 
   try {
     // Verify all content items exist
-    const contentIds = updates.map(u => u.contentId);
+    const contentIds = updates.map((u) => u.contentId);
     const existingContents = await prisma.content.findMany({
       where: { contentId: { in: contentIds } },
-      select: { contentId: true }
+      select: { contentId: true },
     });
 
-    const existingContentIds = new Set(existingContents.map(c => c.contentId));
-    const missingContentIds = contentIds.filter(id => !existingContentIds.has(id));
+    const existingContentIds = new Set(
+      existingContents.map((c) => c.contentId)
+    );
+    const missingContentIds = contentIds.filter(
+      (id) => !existingContentIds.has(id)
+    );
 
     if (missingContentIds.length > 0) {
       return errorResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
-        `Content items not found: ${missingContentIds.join(', ')}`
+        `Content items not found: ${missingContentIds.join(", ")}`
       );
     }
 
     // Update all content in a transaction
     const updatedContents = await prisma.$transaction(async (tx) => {
       const results = [];
-      
+
       for (const updateData of updates) {
         const { contentId, ...updateFields } = updateData;
-        
+
         // Only include fields that are provided and not undefined
         const dataToUpdate = {};
-        if (updateFields.title !== undefined) dataToUpdate.title = updateFields.title;
-        if (updateFields.description !== undefined) dataToUpdate.description = updateFields.description;
-        if (updateFields.documentUrl !== undefined) dataToUpdate.documentUrl = updateFields.documentUrl;
-        if (updateFields.documentType !== undefined) dataToUpdate.documentType = updateFields.documentType;
-        if (updateFields.isGenerated !== undefined) dataToUpdate.isGenerated = updateFields.isGenerated;
+        if (updateFields.title !== undefined)
+          dataToUpdate.title = updateFields.title;
+        if (updateFields.description !== undefined)
+          dataToUpdate.description = updateFields.description;
+        if (updateFields.documentUrl !== undefined)
+          dataToUpdate.documentUrl = updateFields.documentUrl;
+        if (updateFields.documentType !== undefined)
+          dataToUpdate.documentType = updateFields.documentType;
+        if (updateFields.isGenerated !== undefined)
+          dataToUpdate.isGenerated = updateFields.isGenerated;
 
         const content = await tx.content.update({
           where: { contentId: parseInt(contentId) },
@@ -514,7 +523,7 @@ export const bulkUpdateContent = asyncHandler(async (req, res) => {
         });
         results.push(content);
       }
-      
+
       return results;
     });
 
@@ -530,10 +539,9 @@ export const bulkUpdateContent = asyncHandler(async (req, res) => {
             acc[content.courseId] = (acc[content.courseId] || 0) + 1;
             return acc;
           }, {}),
-        }
+        },
       }
     );
-
   } catch (error) {
     console.error("Bulk content update error:", error);
     return errorResponse(

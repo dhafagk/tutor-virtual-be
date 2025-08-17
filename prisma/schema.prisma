@@ -57,9 +57,9 @@ model Student {
   semester  Int
 
   // Relations
-  user           User            @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  chatSessions   ChatSession[]
-  temporaryFiles TemporaryFile[]
+  user         User          @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  chatSessions ChatSession[]
+  files        File[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -76,8 +76,8 @@ model Course {
   objectives    String? // Learning objectives
   competencies  String? // Competencies gained
   prerequisites String? // Prerequisites
-  topics        Json?   // Course topics/modules as JSON array
-  semester      Int?    // Recommended semester
+  topics        Json? // Course topics/modules as JSON array
+  semester      Int? // Recommended semester
   faculty       String? // Faculty
   department    String? // Department
   instructor    String? // Course instructor
@@ -151,7 +151,7 @@ model ChatSession {
   studentId   String
   courseId    String   @db.Uuid
   startTime   DateTime @default(now())
-  title       String?  // Auto-generated session title
+  title       String? // Auto-generated session title
   lastMessage String?  @db.Text // Last message sent by student
 
   // Relations
@@ -175,15 +175,18 @@ model Message {
   messageType String
   timestamp   DateTime @default(now())
   isFromUser  Boolean
+  fileId      String?  @db.Uuid // Optional file attachment
 
   // Relations
   chatSession ChatSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)
   references  Reference[]
+  file        File?       @relation(fields: [fileId], references: [fileId], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([sessionId])
   @@index([timestamp])
+  @@index([fileId])
   @@map("messages")
 }
 
@@ -209,22 +212,22 @@ model Reference {
   @@map("references")
 }
 
-// TemporaryFile model - for staged file uploads
-model TemporaryFile {
-  fileId       String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+// File model - for permanent file uploads
+model File {
+  fileId       String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   studentId    String
   originalName String
   storagePath  String // Supabase storage path
   mimeType     String
   fileSize     Int
-  expiresAt    DateTime
 
   // Relations
-  student Student @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  student  Student   @relation(fields: [studentId], references: [studentId], onDelete: Cascade)
+  messages Message[]
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([studentId])
-  @@index([expiresAt])
-  @@map("temporary_files")
+  @@map("files")
 }

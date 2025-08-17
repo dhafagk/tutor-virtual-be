@@ -83,12 +83,6 @@ async function main() {
         "After completing this course, students will be able to: 1) Write well-structured Python programs, 2) Apply problem-solving methodologies, 3) Understand basic algorithms and data structures, 4) Debug and test programs effectively.",
       prerequisites:
         "Basic mathematics and logical thinking. No prior programming experience required.",
-      teachingMethods:
-        "Lectures, hands-on programming labs, coding assignments, and project-based learning.",
-      evaluation:
-        "Assignments (30%), Mid-term exam (25%), Final project (25%), Final exam (20%)",
-      references:
-        "1. Python Crash Course by Eric Matthes, 2. Automate the Boring Stuff with Python by Al Sweigart, 3. Think Python by Allen B. Downey",
       topics: JSON.stringify([
         "Python Basics and Syntax",
         "Variables and Data Types",
@@ -118,12 +112,6 @@ async function main() {
       competencies:
         "Students will be able to: 1) Implement various data structures, 2) Analyze time and space complexity, 3) Choose appropriate algorithms for different problems, 4) Design efficient solutions for computational problems.",
       prerequisites: "CS101 - Introduction to Programming, Basic Mathematics",
-      teachingMethods:
-        "Theoretical lectures, practical programming sessions, algorithm analysis workshops, and coding competitions.",
-      evaluation:
-        "Programming assignments (35%), Quizzes (15%), Mid-term exam (25%), Final exam (25%)",
-      references:
-        "1. Introduction to Algorithms by Cormen, Leiserson, Rivest, and Stein, 2. Data Structures and Algorithms in Python by Goodrich, Tamassia, and Goldwasser",
       topics: JSON.stringify([
         "Algorithm Analysis and Big O Notation",
         "Arrays and Dynamic Arrays",
@@ -156,12 +144,6 @@ async function main() {
         "Students will master: 1) Database design principles and normalization, 2) SQL programming for data manipulation and querying, 3) Database administration and optimization, 4) Transaction management and concurrency control.",
       prerequisites:
         "Basic programming knowledge, Introduction to Information Systems",
-      teachingMethods:
-        "Lectures with case studies, hands-on database labs, SQL programming exercises, and database design projects.",
-      evaluation:
-        "Database design project (30%), SQL assignments (25%), Mid-term exam (20%), Final exam (25%)",
-      references:
-        "1. Database System Concepts by Silberschatz, Korth, and Sudarshan, 2. Learning SQL by Alan Beaulieu, 3. Database Design for Mere Mortals by Michael J. Hernandez",
       topics: JSON.stringify([
         "Introduction to Database Systems",
         "Relational Model and Algebra",
@@ -194,11 +176,6 @@ async function main() {
       competencies:
         "Students will be able to understand and implement transformer architectures, attention mechanisms, and other advanced ML models.",
       prerequisites: "Linear Algebra, Statistics, Programming Experience",
-      teachingMethods:
-        "Lectures, hands-on coding sessions, research paper discussions",
-      evaluation: "Assignments (40%), Mid-term (25%), Final Project (35%)",
-      references:
-        "1. Deep Learning by Ian Goodfellow, 2. Attention Is All You Need paper, 3. Pattern Recognition and Machine Learning by Christopher Bishop",
       topics: JSON.stringify([
         "Neural Network Fundamentals",
         "Deep Learning Architectures",

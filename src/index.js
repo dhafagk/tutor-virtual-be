@@ -9,7 +9,6 @@ import studentRoutes from "./routes/student.js";
 import fileRoutes from "./routes/files.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { swaggerUi, specs } from "./config/swagger.js";
-import { startCleanupScheduler } from "./services/cleanupScheduler.js";
 import { successResponse } from "./utils/apiResponse.js";
 
 // Load environment variables
@@ -114,5 +113,4 @@ app.use(errorHandler);
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV}`);
-  startCleanupScheduler();
 });

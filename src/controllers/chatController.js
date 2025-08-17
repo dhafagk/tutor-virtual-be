@@ -4,13 +4,15 @@ import {
   getChatResponseWithContext,
   processAllCourseDocuments,
 } from "../services/ragService.js";
-import { getTemporaryFile } from "../services/supabaseStorageService.js";
+import { getFile } from "../services/supabaseStorageService.js";
 import { generateSessionTitle } from "../services/titleGenerationService.js";
+import {
+  generateCourseSuggestions,
+  generateQuickSuggestions,
+} from "../services/suggestionService.js";
 import {
   successResponse,
   errorResponse,
-  validationErrorResponse,
-  paginatedResponse,
   HTTP_STATUS,
   SUCCESS_MESSAGES,
   ERROR_MESSAGES,
@@ -172,6 +174,23 @@ export const startCourseChat = asyncHandler(async (req, res) => {
     },
   });
 
+  // Generate suggestion prompts for the course
+  let suggestionPrompts = [];
+  try {
+    console.log(
+      `🤖 Generating AI-powered suggestions for course: ${course.courseName}`
+    );
+    // Try AI-generated suggestions first
+    suggestionPrompts = await generateCourseSuggestions(courseId);
+  } catch (error) {
+    console.error(
+      "Error generating AI suggestions, using quick suggestions:",
+      error
+    );
+    // Fallback to quick suggestions if AI fails
+    suggestionPrompts = generateQuickSuggestions(course);
+  }
+
   return successResponse(
     res,
     HTTP_STATUS.CREATED,
@@ -182,6 +201,7 @@ export const startCourseChat = asyncHandler(async (req, res) => {
       title: session.title,
       lastMessage: session.lastMessage,
       startTime: session.startTime,
+      suggestionPrompts: suggestionPrompts, // Include suggestions in response
     }
   );
 });
@@ -196,14 +216,15 @@ export const sendMessage = asyncHandler(async (req, res) => {
 
   const studentId = req.student.studentId;
 
-  // Handle staged file IDs
+  // Handle file IDs
   let fileContext = null;
+  let selectedFileId = null;
   if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
     // Support only one file per message
-    const fileId = fileIds[0];
+    selectedFileId = fileIds[0];
 
     try {
-      const fileData = await getTemporaryFile(fileId, studentId);
+      const fileData = await getFile(selectedFileId, studentId);
       fileContext = {
         buffer: fileData.buffer,
         mimeType: fileData.mimeType,
@@ -216,18 +237,18 @@ export const sendMessage = asyncHandler(async (req, res) => {
       const icon = isImage ? "🖼️" : "📄";
 
       console.log(
-        `${icon} ${fileType} from staging: ${fileData.originalName} (${
+        `${icon} ${fileType} attached: ${fileData.originalName} (${
           fileData.mimeType
         }, ${(fileData.fileSize / 1024 / 1024).toFixed(2)} MB)`
       );
     } catch (error) {
-      console.error("Error retrieving staged file:", error);
+      console.error("Error retrieving file:", error);
       return errorResponse(
         res,
         HTTP_STATUS.BAD_REQUEST,
-        "Failed to retrieve uploaded file. File may have expired or been removed.",
+        "Failed to retrieve uploaded file. File may not exist or you don't have permission to access it.",
         "FILE_RETRIEVAL_ERROR",
-        { fileId }
+        { fileId: selectedFileId }
       );
     }
   }
@@ -284,6 +305,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
         content: message,
         messageType: "text",
         isFromUser: true,
+        fileId: selectedFileId, // Store file reference in message
       },
     });
 
@@ -341,6 +363,14 @@ export const sendMessage = asyncHandler(async (req, res) => {
         content: userMessage.content,
         timestamp: userMessage.timestamp,
         isFromUser: true,
+        fileInfo: fileContext
+          ? {
+              fileId: selectedFileId,
+              fileName: fileContext.originalName,
+              fileType: fileContext.mimeType,
+              fileSize: fileContext.size,
+            }
+          : null,
       },
       aiResponse: {
         messageId: assistantMessage.messageId,
@@ -361,7 +391,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
         fileIds &&
         Array.isArray(fileIds) &&
         fileIds.length > 0
-      ), // Indicates if staged file was used
+      ),
       session: {
         sessionId: session.sessionId,
         title: sessionTitle, // Include generated title in response
@@ -456,69 +486,5 @@ export const getSession = asyncHandler(async (req, res) => {
 
   return successResponse(res, HTTP_STATUS.OK, SUCCESS_MESSAGES.RETRIEVED, {
     session,
-  });
-});
-
-export const getStudentSessions = asyncHandler(async (req, res) => {
-  const { courseId, page = 1, limit = 20 } = req.query;
-
-  // Use authenticated student's ID
-  const studentId = req.student ? req.student.studentId : req.params.studentId;
-
-  // If not authenticated as student, check if admin is accessing specific student data
-  if (!req.student && req.userRole !== "admin") {
-    return errorResponse(res, HTTP_STATUS.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
-  }
-
-  const where = {
-    studentId: studentId,
-    ...(courseId && { courseId }),
-  };
-
-  const skip = (parseInt(page) - 1) * parseInt(limit);
-
-  const [sessions, totalCount] = await Promise.all([
-    prisma.chatSession.findMany({
-      where,
-      include: {
-        course: true,
-        _count: {
-          select: { messages: true },
-        },
-      },
-      orderBy: { startTime: "desc" },
-      skip,
-      take: parseInt(limit),
-    }),
-    prisma.chatSession.count({ where }),
-  ]);
-
-  return paginatedResponse(
-    res,
-    { sessions },
-    {
-      page: parseInt(page),
-      limit: parseInt(limit),
-      total: totalCount,
-    },
-    "Student sessions retrieved successfully"
-  );
-});
-
-export const getCourses = asyncHandler(async (req, res) => {
-  const courses = await prisma.course.findMany({
-    where: { isActive: true },
-    select: {
-      courseId: true,
-      courseCode: true,
-      courseName: true,
-      description: true,
-      credits: true,
-    },
-    orderBy: { courseName: "asc" },
-  });
-
-  return successResponse(res, HTTP_STATUS.OK, SUCCESS_MESSAGES.RETRIEVED, {
-    courses,
   });
 });
