@@ -106,7 +106,7 @@ ${fullContext}
 Berikan 3 saran pertanyaan yang relevan dalam format JSON array.`,
         },
       ],
-      max_tokens: 800,
+      max_completion_tokens: 800,
       temperature: 0.7,
     });
 

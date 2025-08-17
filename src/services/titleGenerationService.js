@@ -52,10 +52,9 @@ Hasilkan HANYA judulnya. Jangan tambahkan apa pun lagi.`;
           content: prompt,
         },
       ],
-      max_tokens: 20,
+      max_completion_tokens: 20,
       temperature: 0.7,
     });
-
 
     let title = response.choices[0].message.content.trim();
 

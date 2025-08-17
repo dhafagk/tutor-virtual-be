@@ -501,7 +501,7 @@ Gunakan Bahasa Indonesia yang baik dan benar.
 Fokus pada aspek edukatif, bukan hanya deskriptif.`,
           },
         ],
-        max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
+        max_completion_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
         temperature: 0.3,
       });
 
@@ -1003,7 +1003,7 @@ Gaya Komunikasi:
     const response = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages,
-      max_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
+      max_completion_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
       temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.7,
     });
 
