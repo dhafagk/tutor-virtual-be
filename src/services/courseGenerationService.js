@@ -36,8 +36,7 @@ Jawab hanya dalam format JSON yang valid tanpa penjelasan tambahan.`;
         },
       ],
       max_completion_tokens: 1500,
-      reasoning_effort: "medium",
-      verbosity: "medium",
+      temperature: process.env.OPENAI_TEMPERATURE || 0.7,
     });
 
     const generatedContent = response.choices[0].message.content.trim();
@@ -142,8 +141,7 @@ Jawab hanya dalam format JSON yang valid tanpa penjelasan tambahan.`;
         },
       ],
       max_completion_tokens: 2000,
-      reasoning_effort: "medium",
-      verbosity: "medium",
+      temperature: process.env.OPENAI_TEMPERATURE || 0.7,
     });
 
     const generatedContent = response.choices[0].message.content.trim();

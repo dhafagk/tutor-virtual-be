@@ -107,8 +107,7 @@ Berikan 3 saran pertanyaan yang relevan dalam format JSON array.`,
         },
       ],
       max_completion_tokens: 800,
-      reasoning_effort: "medium",
-      verbosity: "medium",
+      temperature: process.env.OPENAI_TEMPERATURE || 0.7,
     });
 
     const responseContent = response.choices[0].message.content.trim();
