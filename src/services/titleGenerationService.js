@@ -53,7 +53,8 @@ Hasilkan HANYA judulnya. Jangan tambahkan apa pun lagi.`;
         },
       ],
       max_completion_tokens: 20,
-      temperature: 0.7,
+      reasoning_effort: "medium",
+      verbosity: "medium",
     });
 
     let title = response.choices[0].message.content.trim();

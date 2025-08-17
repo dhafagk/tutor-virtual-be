@@ -27,32 +27,40 @@ Jawab hanya dalam format JSON yang valid tanpa penjelasan tambahan.`;
       messages: [
         {
           role: "system",
-          content: "Kamu adalah asisten ahli kurikulum pendidikan tinggi Indonesia. Berikan respons dalam format JSON yang valid."
+          content:
+            "Kamu adalah asisten ahli kurikulum pendidikan tinggi Indonesia. Berikan respons dalam format JSON yang valid.",
         },
         {
           role: "user",
-          content: prompt
-        }
+          content: prompt,
+        },
       ],
-      max_tokens: 1500,
-      temperature: 0.7,
+      max_completion_tokens: 1500,
+      reasoning_effort: "medium",
+      verbosity: "medium",
     });
 
     const generatedContent = response.choices[0].message.content.trim();
-    
+
     // Parse JSON response
     let parsedContent;
     try {
       // Remove markdown code block if present
-      const cleanContent = generatedContent.replace(/```json\n?|\n?```/g, '');
+      const cleanContent = generatedContent.replace(/```json\n?|\n?```/g, "");
       parsedContent = JSON.parse(cleanContent);
     } catch (parseError) {
       throw new Error(`Failed to parse OpenAI response: ${parseError.message}`);
     }
 
     // Validate required fields
-    const requiredFields = ['description', 'objectives', 'competencies', 'prerequisites', 'topics'];
-    
+    const requiredFields = [
+      "description",
+      "objectives",
+      "competencies",
+      "prerequisites",
+      "topics",
+    ];
+
     for (const field of requiredFields) {
       if (!parsedContent[field]) {
         throw new Error(`Missing required field: ${field}`);
@@ -61,7 +69,7 @@ Jawab hanya dalam format JSON yang valid tanpa penjelasan tambahan.`;
 
     // Validate topics is an array
     if (!Array.isArray(parsedContent.topics)) {
-      throw new Error('Topics must be an array');
+      throw new Error("Topics must be an array");
     }
 
     // Convert topics array to JSON string for database storage
@@ -72,21 +80,20 @@ Jawab hanya dalam format JSON yang valid tanpa penjelasan tambahan.`;
         prompt_tokens: response.usage?.prompt_tokens || 0,
         completion_tokens: response.usage?.completion_tokens || 0,
         total_tokens: response.usage?.total_tokens || 0,
-      }
+      },
     };
 
     return {
       success: true,
-      data: result
+      data: result,
     };
-
   } catch (error) {
-    console.error('Course fields generation error:', error);
-    
+    console.error("Course fields generation error:", error);
+
     return {
       success: false,
-      error: error.message || 'Failed to generate course fields',
-      details: error
+      error: error.message || "Failed to generate course fields",
+      details: error,
     };
   }
 };
@@ -134,8 +141,9 @@ Jawab hanya dalam format JSON yang valid tanpa penjelasan tambahan.`;
           content: prompt,
         },
       ],
-      max_tokens: 2000,
-      temperature: 0.7,
+      max_completion_tokens: 2000,
+      reasoning_effort: "medium",
+      verbosity: "medium",
     });
 
     const generatedContent = response.choices[0].message.content.trim();
