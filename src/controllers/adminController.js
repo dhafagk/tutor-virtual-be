@@ -121,7 +121,7 @@ export const getCourseById = asyncHandler(async (req, res) => {
 });
 
 export const generateCourseFieldsOnly = asyncHandler(async (req, res) => {
-  const { courseName } = req.body;
+  const { courseName, courseId } = req.body;
 
   if (!courseName) {
     return errorResponse(
@@ -131,7 +131,24 @@ export const generateCourseFieldsOnly = asyncHandler(async (req, res) => {
     );
   }
 
+  if (!courseId) {
+    return errorResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      "Course ID is required for auto-save"
+    );
+  }
+
   try {
+    // Verify course exists
+    const existingCourse = await prisma.course.findUnique({
+      where: { courseId },
+    });
+
+    if (!existingCourse) {
+      return errorResponse(res, HTTP_STATUS.NOT_FOUND, "Course not found");
+    }
+
     const result = await generateCourseFields(courseName);
 
     if (!result.success) {
@@ -142,13 +159,28 @@ export const generateCourseFieldsOnly = asyncHandler(async (req, res) => {
       );
     }
 
+    // Update existing course with generated fields
+    const updatedCourse = await prisma.course.update({
+      where: { courseId },
+      data: {
+        description: result.data.description,
+        objectives: result.data.objectives,
+        competencies: result.data.competencies,
+        prerequisites: result.data.prerequisites,
+        topics: result.data.topics, // Already JSON stringified
+      },
+    });
+
     return successResponse(
       res,
       HTTP_STATUS.OK,
-      "Course fields generated successfully",
+      "Course fields generated and updated successfully",
       {
-        ...result.data,
-        generatedAt: new Date(),
+        course: updatedCourse,
+        generation: {
+          ...result.data,
+          generatedAt: new Date(),
+        },
       }
     );
   } catch (error) {
@@ -156,7 +188,7 @@ export const generateCourseFieldsOnly = asyncHandler(async (req, res) => {
     return errorResponse(
       res,
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      "Failed to generate course fields",
+      "Failed to generate and update course fields",
       "GENERATION_ERROR",
       error.message
     );
@@ -164,7 +196,7 @@ export const generateCourseFieldsOnly = asyncHandler(async (req, res) => {
 });
 
 export const generateCourseContentOnly = asyncHandler(async (req, res) => {
-  const { courseName } = req.body;
+  const { courseName, courseId } = req.body;
 
   if (!courseName) {
     return errorResponse(
@@ -174,7 +206,24 @@ export const generateCourseContentOnly = asyncHandler(async (req, res) => {
     );
   }
 
+  if (!courseId) {
+    return errorResponse(
+      res,
+      HTTP_STATUS.BAD_REQUEST,
+      "Course ID is required for auto-save"
+    );
+  }
+
   try {
+    // Verify course exists
+    const course = await prisma.course.findUnique({
+      where: { courseId },
+    });
+
+    if (!course) {
+      return errorResponse(res, HTTP_STATUS.NOT_FOUND, "Course not found");
+    }
+
     const result = await generateCourseContent(courseName);
 
     if (!result.success) {
@@ -185,21 +234,52 @@ export const generateCourseContentOnly = asyncHandler(async (req, res) => {
       );
     }
 
+    // Auto-save generated content to database
+    const savedContents = await prisma.$transaction(async (tx) => {
+      const createdContents = [];
+
+      for (const contentData of result.data.contentList) {
+        const content = await tx.content.create({
+          data: {
+            courseId,
+            title: contentData.title,
+            description: contentData.description,
+            documentUrl: contentData.documentUrl || null,
+            documentType: contentData.documentType || null,
+            isGenerated: true,
+          },
+        });
+        createdContents.push(content);
+      }
+
+      return createdContents;
+    });
+
+    const summary = {
+      totalContentSuggestions: result.data.contentList.length,
+      totalSaved: savedContents.length,
+      contentTypes: result.data.contentList.reduce((acc, content) => {
+        const type = content.documentType || "unknown";
+        acc[type] = (acc[type] || 0) + 1;
+        return acc;
+      }, {}),
+    };
+
     return successResponse(
       res,
-      HTTP_STATUS.OK,
-      "Course content recommendations generated successfully",
+      HTTP_STATUS.CREATED,
+      "Course content generated and saved successfully",
       {
-        ...result.data,
-        generatedAt: new Date(),
-        summary: {
-          totalContentSuggestions: result.data.contentList.length,
-          contentTypes: result.data.contentList.reduce((acc, content) => {
-            const type = content.documentType || "unknown";
-            acc[type] = (acc[type] || 0) + 1;
-            return acc;
-          }, {}),
+        course: {
+          courseId: course.courseId,
+          courseName: course.courseName,
         },
+        savedContents,
+        generation: {
+          ...result.data,
+          generatedAt: new Date(),
+        },
+        summary,
       }
     );
   } catch (error) {
@@ -207,7 +287,7 @@ export const generateCourseContentOnly = asyncHandler(async (req, res) => {
     return errorResponse(
       res,
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      "Failed to generate course content recommendations",
+      "Failed to generate and save course content",
       "GENERATION_ERROR",
       error.message
     );

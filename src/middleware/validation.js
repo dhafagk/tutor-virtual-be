@@ -83,11 +83,16 @@ export const validateCourse = [
     .trim()
     .isLength({ min: 3, max: 100 })
     .withMessage("Course name required (3-100 characters)"),
-  body("description")
+  body("instructor")
     .optional()
     .trim()
-    .isLength({ max: 500 })
-    .withMessage("Description max 500 characters"),
+    .isLength({ min: 3, max: 100 })
+    .withMessage("Insturctor required (3-100 characters)"),
+  body("faculty")
+    .optional()
+    .trim()
+    .isLength({ min: 3, max: 100 })
+    .withMessage("Faculty required (3-100 characters)"),
   body("credits")
     .isInt({ min: 1, max: 10 })
     .withMessage("SKS must be between 1-10"),
