@@ -36,6 +36,8 @@ import {
   processCourseDocuments,
   getDocumentStatus,
   reprocessFailedDocuments,
+  getCacheStats,
+  clearCache,
 } from "../controllers/adminController.js";
 
 const router = express.Router();
@@ -742,6 +744,97 @@ router.post(
   authorizeAdmin,
   validateUUIDParam("courseId"),
   reprocessFailedDocuments
+);
+
+// Cache Management routes
+/**
+ * @swagger
+ * /api/admin/cache/stats:
+ *   get:
+ *     tags: [Admin - Performance Management]
+ *     summary: Get embedding cache statistics
+ *     description: Retrieve performance statistics for the embedding cache including hit rate, size, and recommendations
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Cache statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Cache statistics retrieved"
+ *                 cache:
+ *                   type: object
+ *                   properties:
+ *                     size:
+ *                       type: integer
+ *                       description: Current number of cached items
+ *                     maxSize:
+ *                       type: integer
+ *                       description: Maximum cache capacity
+ *                     hitCount:
+ *                       type: integer
+ *                       description: Number of cache hits
+ *                     missCount:
+ *                       type: integer
+ *                       description: Number of cache misses
+ *                     hitRate:
+ *                       type: integer
+ *                       description: Hit rate percentage
+ *                     ttl:
+ *                       type: integer
+ *                       description: Time to live in milliseconds
+ *                 performance:
+ *                   type: object
+ *                   properties:
+ *                     description:
+ *                       type: string
+ *                     recommendations:
+ *                       type: object
+ */
+router.get(
+  "/cache/stats",
+  authenticateToken,
+  authorizeAdmin,
+  getCacheStats
+);
+
+/**
+ * @swagger
+ * /api/admin/cache/clear:
+ *   delete:
+ *     tags: [Admin - Performance Management]
+ *     summary: Clear embedding cache
+ *     description: Clear all cached embeddings to free memory and reset cache statistics
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Cache cleared successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Embedding cache cleared successfully"
+ *                 clearedEntries:
+ *                   type: integer
+ *                   description: Number of entries that were cleared
+ *                 previousHitRate:
+ *                   type: integer
+ *                   description: Hit rate before clearing
+ */
+router.delete(
+  "/cache/clear",
+  authenticateToken,
+  authorizeAdmin,
+  clearCache
 );
 
 export default router;

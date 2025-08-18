@@ -248,6 +248,13 @@ async function main() {
         documentUrl:
           "https://proceedings.neurips.cc/paper_files/paper/2017/file/3f5ee243547dee91fbd053c1c4a845aa-Paper.pdf",
       },
+      {
+        courseId: course4.courseId,
+        title: "Machine Learning",
+        description: "Machine learning bahasa indonesia PDF",
+        documentUrl:
+          "https://repository.unimal.ac.id/6707/1/Machine%20Learning.pdf",
+      },
     ],
   });
 

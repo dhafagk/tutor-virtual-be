@@ -2,6 +2,8 @@ import OpenAI from "openai";
 import { prisma } from "../lib/prisma.js";
 import PDFParser from "pdf-parse";
 import mammoth from "mammoth";
+import fetch from "node-fetch";
+import embeddingCache from "./embeddingCacheService.js";
 
 // Initialize OpenAI
 const client = new OpenAI({
@@ -16,11 +18,56 @@ const MAX_CHUNKS_PER_QUERY = 5; // max chunks to retrieve for context
 // Similarity threshold for RAG
 const SIMILARITY_THRESHOLD = 0.05;
 
+// URL validation configuration
+const URL_VALIDATION_TIMEOUT = 5000; // 5 seconds timeout
+const MAX_CONCURRENT_VALIDATIONS = 3; // Limit concurrent validations
+
 /**
  * Estimate token count for text (rough approximation: 1 token ≈ 4 characters)
  */
 const estimateTokenCount = (text) => {
   return Math.ceil(text.length / 4);
+};
+
+/**
+ * Validate if a URL is accessible
+ */
+const validateURL = async (url, timeout = URL_VALIDATION_TIMEOUT) => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(url, {
+      method: "HEAD", // Only check headers, don't download content
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; Educational-Bot/1.0)",
+      },
+    });
+
+    clearTimeout(timeoutId);
+
+    // Consider successful if status is 2xx or 3xx
+    return response.status >= 200 && response.status < 400;
+  } catch (error) {
+    // URL is not accessible
+    return false;
+  }
+};
+
+/**
+ * Generate fallback URLs for common educational domains
+ */
+const generateFallbackURLs = (topic, type = "website") => {
+  const fallbackDomains = {
+    website: [
+      `https://www.wikipedia.org/wiki/${encodeURIComponent(topic)}`,
+      `https://scholar.google.com/scholar?q=${encodeURIComponent(topic)}`,
+      `https://www.coursera.org/search?query=${encodeURIComponent(topic)}`,
+    ],
+  };
+
+  return fallbackDomains[type] || fallbackDomains.website;
 };
 
 /**
@@ -219,16 +266,41 @@ const fetchAndParseDocument = async (url) => {
 };
 
 /**
- * Generate embeddings for text using OpenAI
+ * Generate embeddings for text using OpenAI with caching
  */
 const generateEmbeddings = async (text) => {
   try {
+    // Check cache first
+    const cachedEmbedding = embeddingCache.get(text);
+    if (cachedEmbedding) {
+      return cachedEmbedding;
+    }
+
+    // Try to find similar cached embedding
+    const similarEmbedding = embeddingCache.findSimilarCached(text, 0.85);
+    if (similarEmbedding) {
+      return similarEmbedding;
+    }
+
+    console.log(
+      `🔄 Generating new embedding for text (${text.length} chars)...`
+    );
+    const startTime = Date.now();
+
     const response = await client.embeddings.create({
       model: "text-embedding-3-small",
       input: text,
     });
 
-    return response.data[0].embedding;
+    const embedding = response.data[0].embedding;
+    const duration = Date.now() - startTime;
+
+    console.log(`✅ Generated embedding in ${duration}ms`);
+
+    // Cache the result
+    embeddingCache.set(text, embedding);
+
+    return embedding;
   } catch (error) {
     console.error("Error generating embeddings:", error);
     throw error;
@@ -326,7 +398,7 @@ export const processDocument = async (contentId) => {
 };
 
 /**
- * Find similar chunks using vector similarity search
+ * Find similar chunks using optimized vector similarity search with caching
  */
 export const findSimilarChunks = async (
   queryText,
@@ -334,11 +406,16 @@ export const findSimilarChunks = async (
   limit = MAX_CHUNKS_PER_QUERY
 ) => {
   try {
-    // Generate embeddings for the query
+    const startTime = Date.now();
+    console.log(
+      `🔍 Finding similar chunks for query (${queryText.length} chars)...`
+    );
+
+    // Generate embeddings for the query (with caching)
     const queryEmbeddings = await generateEmbeddings(queryText);
     const embeddingVector = `[${queryEmbeddings.join(",")}]`;
 
-    // Step 1: Get all chunks with their similarities (no threshold yet)
+    // Optimized query: Apply threshold in database and use better ordering
     const allChunks = await prisma.$queryRaw`
       SELECT 
         dc."chunkId",
@@ -358,31 +435,42 @@ export const findSimilarChunks = async (
       WHERE c."courseId" = ${courseId}::uuid
         AND c."isProcessed" = true
         AND dc.embeddings IS NOT NULL
+        AND (1 - (dc.embeddings <=> ${embeddingVector}::vector)) > ${SIMILARITY_THRESHOLD}
       ORDER BY dc.embeddings <=> ${embeddingVector}::vector
-      LIMIT ${limit * 3}
+      LIMIT ${limit}
     `;
 
-    // Step 2: Apply similarity threshold and filter
-    const filteredChunks = allChunks
-      .filter((chunk) => parseFloat(chunk.similarity) > SIMILARITY_THRESHOLD)
-      .slice(0, limit); // Final limit
+    const duration = Date.now() - startTime;
 
-    if (filteredChunks.length === 0) {
+    if (allChunks.length === 0) {
       console.log(
         `⚠️  No chunks found above ${(SIMILARITY_THRESHOLD * 100).toFixed(
           0
-        )}% similarity threshold`
+        )}% similarity threshold (${duration}ms)`
       );
       return [];
     }
 
-    return filteredChunks.map((chunk) => ({
+    console.log(
+      `✅ Found ${
+        allChunks.length
+      } relevant chunks in ${duration}ms (avg similarity: ${(
+        (allChunks.reduce(
+          (sum, chunk) => sum + parseFloat(chunk.similarity),
+          0
+        ) /
+          allChunks.length) *
+        100
+      ).toFixed(1)}%)`
+    );
+
+    return allChunks.map((chunk) => ({
       chunkId: chunk.chunkId,
       content: chunk.content,
       tokenCount: chunk.tokenCount,
       chunkIndex: chunk.chunkIndex,
       pageNumber: chunk.pageNumber,
-      similarity: chunk.similarity,
+      similarity: parseFloat(chunk.similarity),
       document: {
         title: chunk.document_title,
         url: chunk.document_url,
@@ -545,7 +633,7 @@ Fokus pada aspek edukatif, bukan hanya deskriptif.`,
 
       try {
         const chunkResponse = await client.chat.completions.create({
-          model: "gpt-4o-mini",
+          model: "gpt-4.1-mini-2025-04-14",
           messages: [
             {
               role: "user",
@@ -604,7 +692,7 @@ Jawab dalam format yang jelas dan ringkas. Fokus pada aspek edukatif.`,
       .join("\n\n");
 
     const summaryResponse = await client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4.1-mini-2025-04-14",
       messages: [
         {
           role: "user",
@@ -716,14 +804,16 @@ Gaya Komunikasi:
 };
 
 /**
- * Get chat response with RAG context, conversation history, optional image, and optional document
+ * Enhanced RAG with external references
  */
-export const getChatResponseWithContext = async (
+export const getChatResponseWithContextAndReferences = async (
   userMessage,
   courseId,
   courseName,
+  courseCode,
   sessionId = null,
-  fileContext = null // Can contain both image and document contexts
+  fileContext = null, // Can contain both image and document contexts
+  includeExternalReferences = true
 ) => {
   try {
     // Process uploaded file (image or document) if provided
@@ -757,13 +847,56 @@ export const getChatResponseWithContext = async (
       }
     }
 
-    // Find relevant chunks
-    const relevantChunks = await findSimilarChunks(userMessage, courseId);
+    // Run all parallel operations for better performance
+    console.log("🚀 Starting parallel data retrieval...");
+    const parallelStart = Date.now();
 
-    // Get conversation history if sessionId is provided
-    const conversationHistory = sessionId
-      ? await getConversationHistory(sessionId)
-      : [];
+    const parallelPromises = [
+      findSimilarChunks(userMessage, courseId),
+      sessionId ? getConversationHistory(sessionId) : Promise.resolve([]),
+    ];
+
+    // Add external references if enabled
+    if (
+      includeExternalReferences &&
+      process.env.ENABLE_EXTERNAL_REFERENCES !== "false"
+    ) {
+      parallelPromises.push(
+        generateExternalReferences(userMessage, courseName, courseCode)
+      );
+    }
+
+    const results = await Promise.allSettled(parallelPromises);
+    const parallelDuration = Date.now() - parallelStart;
+
+    // Extract results
+    const relevantChunks =
+      results[0].status === "fulfilled" ? results[0].value : [];
+    const conversationHistory =
+      results[1].status === "fulfilled" ? results[1].value : [];
+
+    let externalReferences = { journals: [], books: [], websites: [] };
+
+    if (
+      includeExternalReferences &&
+      process.env.ENABLE_EXTERNAL_REFERENCES !== "false"
+    ) {
+      if (results[2] && results[2].status === "fulfilled") {
+        externalReferences = results[2].value;
+        console.log(
+          `✅ Generated ${externalReferences.journals.length} journal refs, ${externalReferences.books.length} book refs, ${externalReferences.websites.length} website refs`
+        );
+      } else if (results[2]) {
+        console.error(
+          "❌ Failed to generate external references:",
+          results[2].reason
+        );
+      }
+    }
+
+    console.log(
+      `🏎️ Parallel data retrieval completed in ${parallelDuration}ms`
+    );
 
     let systemPrompt;
     let referencedDocuments = [];
@@ -853,30 +986,99 @@ export const getChatResponseWithContext = async (
 
       const allFileContexts = imageContextSection + documentContextSection;
 
-      systemPrompt = `Anda adalah seorang tutor AI ahli untuk mata kuliah "${courseName}".
+      // Build external references sections
+      let externalReferencesSection = "";
+      if (
+        externalReferences.journals.length > 0 ||
+        externalReferences.books.length > 0 ||
+        externalReferences.websites.length > 0
+      ) {
+        externalReferencesSection = `\n\n## REFERENSI EKSTERNAL YANG RELEVAN:\n`;
+
+        if (externalReferences.journals.length > 0) {
+          externalReferencesSection += `\n**Jurnal Ilmiah:**\n`;
+          externalReferences.journals.forEach((journal, index) => {
+            externalReferencesSection += `${index + 1}. ${journal.title} (${
+              journal.authors
+            }, ${journal.year})\n   Penerbit: ${
+              journal.publisher
+            }\n   Relevansi: ${journal.relevance}\n   Keywords: ${
+              journal.keywords?.join(", ") || "N/A"
+            }\n`;
+            if (journal.doi) {
+              externalReferencesSection += `   DOI: ${journal.doi}\n`;
+            }
+            externalReferencesSection += "\n";
+          });
+        }
+
+        if (externalReferences.books.length > 0) {
+          externalReferencesSection += `\n**Buku Referensi:**\n`;
+          externalReferences.books.forEach((book, index) => {
+            externalReferencesSection += `${index + 1}. ${book.title} (${
+              book.authors
+            }, ${book.year})\n   Penerbit: ${book.publisher}\n   Relevansi: ${
+              book.relevance
+            }\n`;
+            if (book.isbn) {
+              externalReferencesSection += `   ISBN: ${book.isbn}\n`;
+            }
+            externalReferencesSection += "\n";
+          });
+        }
+
+        if (externalReferences.websites.length > 0) {
+          externalReferencesSection += `\n**Sumber Online:**\n`;
+          externalReferences.websites.forEach((site, index) => {
+            externalReferencesSection += `${index + 1}. ${site.title} (${
+              site.type
+            })\n   Sumber: ${site.source}\n   URL: ${site.url}\n   Relevansi: ${
+              site.relevance
+            }\n\n`;
+          });
+        }
+      }
+
+      systemPrompt = `Anda adalah seorang tutor AI ahli untuk mata kuliah "${courseName}" (${courseCode}).
 Peran utama Anda adalah membantu mahasiswa memahami materi, bukan memberikan jawaban instan untuk tugas.
 
 Anda memiliki akses ke dokumen dan materi pembelajaran berikut yang relevan dengan pertanyaan mahasiswa:
 
-${finalContextSections}${allFileContexts}
+${finalContextSections}${allFileContexts}${externalReferencesSection}
 
-Gunakan informasi dari dokumen di atas${
+Gunakan SEMUA informasi di atas (dokumen course dan referensi eksternal${
         processedImageContext || processedDocumentContext
-          ? " DAN file yang diunggah mahasiswa"
+          ? ", serta file yang diunggah mahasiswa"
           : ""
-      } untuk menjalankan tugas-tugas berikut:
-1. Jawab pertanyaan mahasiswa secara akurat dan membantu berdasarkan materi yang tersedia.
-2. Jika pertanyaan mahasiswa bersifat ambigu, ajukan pertanyaan klarifikasi sebelum menjawab.
-3. Untuk konsep yang sulit, gunakan contoh atau analogi dari materi yang ada untuk menjelaskannya.
-4. Jika pertanyaan menanyakan jawaban langsung untuk soal ujian atau tugas, JANGAN berikan jawabannya. Alih-alih, bimbing mahasiswa dengan memberikan petunjuk, menjelaskan konsep terkait, dan mengajukan pertanyaan pancingan untuk mendorong mereka berpikir.
-5. Jika informasi yang dibutuhkan untuk menjawab tidak ada dalam dokumen yang diberikan, nyatakan dengan jujur bahwa Anda tidak memiliki informasi tersebut dalam materi yang tersedia.
-6. Selalu sebutkan dokumen mana yang Anda gunakan sebagai referensi dalam jawaban Anda.
+      }) untuk menjalankan tugas-tugas berikut:
+
+1. **Jawaban Komprehensif**: Berikan jawaban yang menggabungkan materi course dengan referensi eksternal yang relevan
+2. **Referensi yang Beragam**: Sebutkan dan referensikan sumber yang Anda gunakan dari:
+   - Dokumen course yang tersedia
+   - Jurnal ilmiah yang relevan
+   - Buku referensi yang sesuai
+   - Sumber online terpercaya
+3. **Pembelajaran Lanjutan**: Sarankan mahasiswa untuk:
+   - Membaca referensi eksternal untuk pengetahuan lebih mendalam
+   - Mencari sumber tambahan dengan kata kunci yang diberikan
+   - Mengeksplorasi topik terkait dari sumber akademik
+4. **Bimbingan, Bukan Jawaban**: Jika pertanyaan menanyakan jawaban langsung untuk soal ujian atau tugas, JANGAN berikan jawabannya. Bimbing dengan:
+   - Konsep terkait dari materi course
+   - Referensi yang dapat membantu pemahaman
+   - Pertanyaan pancingan untuk mendorong berpikir
+5. **Transparansi**: Selalu jujur jika informasi tidak tersedia dan berikan alternatif sumber pembelajaran
+
+**Format Jawaban yang Disarankan:**
+- Mulai dengan jawaban utama berdasarkan materi course
+- Tambahkan informasi dari referensi eksternal jika relevan
+- Berikan saran untuk pembelajaran lanjutan
+- Tutup dengan referensi yang digunakan
 
 Gaya Komunikasi:
-- Selalu bersikap positif, sabar, dan mendorong.
-- Gunakan Bahasa Indonesia yang baik, benar, dan mudah dipahami.
-- Strukturkan jawaban yang panjang dengan poin-poin agar mudah dibaca.
-- Berikan referensi ke dokumen yang digunakan.`;
+- Selalu bersikap positif, sabar, dan mendorong
+- Gunakan Bahasa Indonesia yang baik, benar, dan mudah dipahami
+- Strukturkan jawaban dengan poin-poin yang jelas
+- Berikan referensi lengkap untuk semua sumber yang disebutkan`;
     } else {
       // Handle case with no RAG documents but possibly with uploaded files
       if (processedImageContext || processedDocumentContext) {
@@ -1004,7 +1206,7 @@ Gaya Komunikasi:
       model: process.env.OPENAI_MODEL || "gpt-4o-mini",
       messages,
       max_completion_tokens: parseInt(process.env.OPENAI_MAX_TOKENS) || 1000,
-      temperature: process.env.OPENAI_TEMPERATURE || 0.7,
+      temperature: 0.7,
     });
 
     return {
@@ -1012,6 +1214,7 @@ Gaya Komunikasi:
       usage: response.usage,
       model: response.model,
       referencedDocuments: referencedDocuments.slice(0, 3), // Limit to top 3 references
+      externalReferences, // External academic references
     };
   } catch (error) {
     console.error("Error getting ChatGPT response with RAG context:", error);
@@ -1069,6 +1272,164 @@ Gaya Komunikasi:
 };
 
 /**
+ * Validate website references and replace broken URLs with working alternatives
+ */
+const validateWebsiteReferences = async (websites, query) => {
+  if (!websites || websites.length === 0) return [];
+
+  console.log(`🔍 Validating ${websites.length} website references...`);
+
+  const validatedWebsites = await Promise.all(
+    websites.map(async (website, index) => {
+      if (!website.url) {
+        console.log(`⚠️ Website ${index + 1}: No URL provided`);
+        return website;
+      }
+
+      const isValid = await validateURL(website.url);
+
+      if (isValid) {
+        console.log(`✅ Website ${index + 1}: ${website.url} - Valid`);
+        return { ...website, isValidated: true };
+      } else {
+        console.log(
+          `❌ Website ${index + 1}: ${
+            website.url
+          } - Broken, generating fallback`
+        );
+
+        // Generate fallback URLs based on the topic
+        const fallbackUrls = generateFallbackURLs(query, "website");
+
+        return {
+          ...website,
+          url: fallbackUrls[0], // Use the first fallback URL
+          originalUrl: website.url, // Keep original for reference
+          isValidated: false,
+          isFallback: true,
+          title: website.title + " (Pencarian Umum)", // Indicate it's a search
+          relevance: `Pencarian umum untuk topik "${query}". URL asli tidak dapat diakses.`,
+        };
+      }
+    })
+  );
+
+  return validatedWebsites;
+};
+
+/**
+ * Generate external academic references using OpenAI
+ */
+const generateExternalReferences = async (query, courseName, courseCode) => {
+  try {
+    const response = await client.chat.completions.create({
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Anda adalah generator JSON. Anda HARUS merespons HANYA dengan JSON yang valid. Jangan sertakan penjelasan, teks, atau format apa pun di luar struktur JSON. Respons harus dimulai dengan '{' dan diakhiri dengan '}'.",
+        },
+        {
+          role: "user",
+          content: `Untuk pertanyaan "${query}" pada mata kuliah "${courseName}" (${courseCode}), buatkan referensi akademik eksternal. Berikan HANYA JSON yang valid dalam format ini:
+
+{
+  "journals": [
+    {
+      "title": "Judul jurnal ilmiah",
+      "authors": "Nama penulis",
+      "year": "2023",
+      "publisher": "Nama jurnal/conference",
+      "relevance": "Penjelasan relevansi dengan topik",
+      "keywords": ["kata kunci 1", "kata kunci 2"],
+      "doi": "10.1000/contoh"
+    }
+  ],
+  "books": [
+    {
+      "title": "Judul buku",
+      "authors": "Nama penulis",
+      "year": "2023",
+      "publisher": "Nama penerbit",
+      "isbn": "978-0000000000",
+      "relevance": "Penjelasan relevansi dengan topik"
+    }
+  ],
+  "websites": [
+    {
+      "title": "Judul sumber web",
+      "url": "https://contoh.com/sumber",
+      "type": "documentation",
+      "source": "Nama website/organisasi",
+      "relevance": "Penjelasan relevansi dengan topik"
+    }
+  ]
+}
+
+Syarat:
+- Maksimal 2-3 item per kategori
+- Sumber berkualitas akademik
+- Relevan dengan kurikulum universitas Indonesia
+- URL dan identifier yang realistis
+- Respons harus JSON valid saja`,
+        },
+      ],
+      max_completion_tokens: 1200,
+      temperature: 0.1,
+    });
+
+    try {
+      let content = response.choices[0].message.content.trim();
+
+      // Clean up any potential formatting issues
+      if (content.startsWith("```json")) {
+        content = content.replace(/```json\s*/, "").replace(/```\s*$/, "");
+      }
+      if (content.startsWith("```")) {
+        content = content.replace(/```\s*/, "").replace(/```\s*$/, "");
+      }
+
+      // Find JSON content if there's extra text
+      const jsonStart = content.indexOf("{");
+      const jsonEnd = content.lastIndexOf("}");
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonStart < jsonEnd) {
+        content = content.substring(jsonStart, jsonEnd + 1);
+      }
+
+      const parsed = JSON.parse(content);
+
+      // Validate and fix website URLs if validation is enabled
+      const validatedWebsites =
+        process.env.VALIDATE_EXTERNAL_URLS === "true"
+          ? await validateWebsiteReferences(parsed.websites || [], query)
+          : parsed.websites || [];
+
+      return {
+        journals: parsed.journals || [],
+        books: parsed.books || [],
+        websites: validatedWebsites,
+      };
+    } catch (parseError) {
+      console.error("Failed to parse external references JSON:", parseError);
+      console.error("Raw response:", response.choices[0].message.content);
+      return {
+        journals: [],
+        books: [],
+        websites: [],
+      };
+    }
+  } catch (error) {
+    console.error("Error generating external references:", error);
+    return {
+      journals: [],
+      books: [],
+      websites: [],
+    };
+  }
+};
+
+/**
  * Process all unprocessed documents for a course
  */
 export const processAllCourseDocuments = async (courseId) => {
@@ -1104,4 +1465,49 @@ export const processAllCourseDocuments = async (courseId) => {
     console.error(`Error processing course documents for ${courseId}:`, error);
     throw error;
   }
+};
+
+/**
+ * Get embedding cache statistics
+ */
+export const getEmbeddingCacheStats = () => {
+  return embeddingCache.getStats();
+};
+
+/**
+ * Clear embedding cache
+ */
+export const clearEmbeddingCache = () => {
+  return embeddingCache.clear();
+};
+
+/**
+ * Get chat response with RAG context, conversation history, optional image, and optional document
+ * (Backward compatibility wrapper - calls enhanced version)
+ */
+export const getChatResponseWithContext = async (
+  userMessage,
+  courseId,
+  courseName,
+  sessionId = null,
+  fileContext = null
+) => {
+  // Call enhanced version with courseCode as courseName for backward compatibility
+  const result = await getChatResponseWithContextAndReferences(
+    userMessage,
+    courseId,
+    courseName,
+    courseName, // Use courseName as courseCode fallback
+    sessionId,
+    fileContext,
+    false // Disable external references for backward compatibility
+  );
+
+  // Return only the original fields for backward compatibility
+  return {
+    content: result.content,
+    usage: result.usage,
+    model: result.model,
+    referencedDocuments: result.referencedDocuments,
+  };
 };

@@ -53,7 +53,7 @@ Hasilkan HANYA judulnya. Jangan tambahkan apa pun lagi.`;
         },
       ],
       max_completion_tokens: 20,
-      temperature: process.env.OPENAI_TEMPERATURE || 0.7,
+      temperature: 0.7,
     });
 
     let title = response.choices[0].message.content.trim();

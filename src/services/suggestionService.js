@@ -107,7 +107,7 @@ Berikan 3 saran pertanyaan yang relevan dalam format JSON array.`,
         },
       ],
       max_completion_tokens: 800,
-      temperature: process.env.OPENAI_TEMPERATURE || 0.7,
+      temperature: 0.7,
     });
 
     const responseContent = response.choices[0].message.content.trim();

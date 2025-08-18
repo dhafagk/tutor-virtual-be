@@ -3,6 +3,8 @@ import { asyncHandler } from "../middleware/errorHandler.js";
 import {
   processDocument,
   processAllCourseDocuments,
+  getEmbeddingCacheStats,
+  clearEmbeddingCache,
 } from "../services/ragService.js";
 import {
   generateCourseFields,
@@ -1005,4 +1007,31 @@ export const reprocessFailedDocuments = asyncHandler(async (req, res) => {
     `Reprocessing completed: ${successful} successful, ${failed} failed`,
     results
   );
+});
+
+// Get embedding cache statistics
+export const getCacheStats = asyncHandler(async (req, res) => {
+  const cacheStats = getEmbeddingCacheStats();
+  
+  return successResponse(res, HTTP_STATUS.OK, "Cache statistics retrieved", {
+    cache: cacheStats,
+    performance: {
+      description: "Cache hit rate indicates efficiency of embedding reuse",
+      recommendations: {
+        hitRate: cacheStats.hitRate < 30 ? "Consider increasing cache size or TTL" : "Good cache performance",
+        size: cacheStats.size / cacheStats.maxSize > 0.8 ? "Cache is near capacity" : "Cache has adequate space"
+      }
+    }
+  });
+});
+
+// Clear embedding cache
+export const clearCache = asyncHandler(async (req, res) => {
+  const statsBefore = getEmbeddingCacheStats();
+  clearEmbeddingCache();
+  
+  return successResponse(res, HTTP_STATUS.OK, "Embedding cache cleared successfully", {
+    clearedEntries: statsBefore.size,
+    previousHitRate: statsBefore.hitRate
+  });
 });

@@ -169,13 +169,17 @@ model ChatSession {
 
 // Message model
 model Message {
-  messageId   String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  sessionId   String   @db.Uuid
-  content     String
-  messageType String
-  timestamp   DateTime @default(now())
-  isFromUser  Boolean
-  fileId      String?  @db.Uuid // Optional file attachment
+  messageId             String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  sessionId             String   @db.Uuid
+  content               String
+  messageType           String
+  timestamp             DateTime @default(now())
+  isFromUser            Boolean
+  fileId                String?  @db.Uuid // Optional file attachment
+  model                 String? // AI model used for response
+  usage                 Json? // Token usage information
+  metadata              Json? // Additional metadata (external refs, video recs, etc.)
+  externalReferences    Json? // External academic references
 
   // Relations
   chatSession ChatSession @relation(fields: [sessionId], references: [sessionId], onDelete: Cascade)

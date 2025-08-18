@@ -11,17 +11,30 @@
     "postinstall": "npm run prisma:generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:reset": "prisma migrate reset",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
     "setup:supabase": "node scripts/setup-supabase.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:all": "node test/run-tests.js all",
+    "test:threshold": "node test/run-tests.js 5.3.1",
+    "test:prompt": "node test/run-tests.js 5.3.2",
+    "test:cross-language": "node test/run-tests.js 5.3.3",
+    "test:document": "node test/run-tests.js 5.3.4",
+    "test:performance": "node test/run-tests.js 5.3.5",
+    "test:ux": "node test/run-tests.js 5.3.6",
+    "test:architecture": "node test/run-tests.js 5.3.7",
+    "test:help": "node test/run-tests.js",
+    "test:debug": "node test/debug-api-structure.js",
+    "validate:implementation": "node test/run-tests.js all"
   },
   "author": "Dhafa",
   "license": "ISC",
   "dependencies": {
     "@prisma/client": "^5.19.1",
     "@supabase/supabase-js": "^2.53.0",
+    "axios": "^1.11.0",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -32,6 +45,7 @@
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.10.0",
     "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
     "openai": "^4.56.0",
     "pdf-parse": "^1.1.1",
     "pgvector": "^0.2.0",
@@ -41,6 +55,7 @@
     "uuid": "^11.1.0"
   },
   "devDependencies": {
+    "form-data": "^4.0.0",
     "nodemon": "^3.1.4",
     "prisma": "^5.19.1"
   }

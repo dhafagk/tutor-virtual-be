@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import {
   getChatResponseWithContext,
+  getChatResponseWithContextAndReferences,
   processAllCourseDocuments,
 } from "../services/ragService.js";
 import { getFile } from "../services/supabaseStorageService.js";
@@ -287,13 +288,15 @@ export const sendMessage = asyncHandler(async (req, res) => {
   let assistantMessage;
 
   try {
-    // Get AI response using RAG (Retrieval-Augmented Generation) with optional file context
-    const aiResponse = await getChatResponseWithContext(
+    // Get AI response using enhanced RAG with external references
+    const aiResponse = await getChatResponseWithContextAndReferences(
       message,
       courseId,
       course.courseName,
+      course.courseCode,
       session.sessionId,
-      fileContext
+      fileContext,
+      true // Enable external references
     );
 
     const assistantResponse = aiResponse.content;
@@ -309,13 +312,23 @@ export const sendMessage = asyncHandler(async (req, res) => {
       },
     });
 
-    // Save assistant message
+    // Save assistant message with enhanced data
     assistantMessage = await prisma.message.create({
       data: {
         sessionId: session.sessionId,
         content: assistantResponse,
         messageType: "text",
         isFromUser: false,
+        model: aiResponse.model,
+        usage: aiResponse.usage,
+        externalReferences: aiResponse.externalReferences,
+        metadata: {
+          hasExternalReferences: (aiResponse.externalReferences?.journals?.length || 0) + 
+                                (aiResponse.externalReferences?.books?.length || 0) + 
+                                (aiResponse.externalReferences?.websites?.length || 0) > 0,
+          totalReferences: (aiResponse.referencedDocuments?.length || 0),
+          processedAt: new Date().toISOString(),
+        },
       },
     });
 
@@ -379,6 +392,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
         isFromUser: false,
       },
       referencedDocuments: aiResponse.referencedDocuments || [],
+      externalReferences: aiResponse.externalReferences || { journals: [], books: [], websites: [] },
       usage: aiResponse.usage,
       model: aiResponse.model,
       fileUploaded: !!fileContext, // Boolean flag indicating if file was used
@@ -396,6 +410,14 @@ export const sendMessage = asyncHandler(async (req, res) => {
         sessionId: session.sessionId,
         title: sessionTitle, // Include generated title in response
         isFirstMessage,
+      },
+      enhancedFeatures: {
+        hasExternalReferences: (aiResponse.externalReferences?.journals?.length || 0) + 
+                              (aiResponse.externalReferences?.books?.length || 0) + 
+                              (aiResponse.externalReferences?.websites?.length || 0) > 0,
+        totalExternalSources: (aiResponse.externalReferences?.journals?.length || 0) + 
+                             (aiResponse.externalReferences?.books?.length || 0) + 
+                             (aiResponse.externalReferences?.websites?.length || 0),
       },
     });
   } catch (error) {
@@ -474,6 +496,7 @@ export const getSession = asyncHandler(async (req, res) => {
       messages: {
         include: {
           references: true,
+          file: true, // Include file information
         },
         orderBy: { timestamp: "asc" },
       },
